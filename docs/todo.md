@@ -10,25 +10,25 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done
 - [x] Init git repo
 - [x] npm workspaces monorepo (`apps/web`, `apps/server`, `packages/dbml-engine`, `packages/shared`)
 - [x] Root README with stack decision
-- [ ] `packages/shared`: TS project setup, base tsconfig
-- [ ] `packages/dbml-engine`: TS project setup, add `@dbml/core` dep
-- [ ] `apps/server`: Fastify + TS scaffold, dev script (tsx watch)
-- [ ] `apps/web`: Vite + React + TS scaffold
+- [x] `packages/shared`: TS project setup, base tsconfig
+- [x] `packages/dbml-engine`: TS project setup, add `@dbml/core` dep
+- [x] `apps/server`: Fastify + TS scaffold, dev script (tsx watch)
+- [x] `apps/web`: Vite + React + TS scaffold
 - [ ] Shared ESLint + Prettier config across workspaces
-- [ ] `npm install` at root, verify all workspaces build
+- [x] `npm install` at root, verify all workspaces build
 
 ## Phase 1 — Core data model (`packages/shared`)
-- [ ] Define schema model types: `Project`, `Table`, `Field`, `Ref` (relationship), `Enum`, `Index`, `Note`, `Zone` (colored group), `StickyNote`
-- [ ] Visual metadata types: position `{x,y}`, size, color, collapsed/detail-level, edge routing points/style
-- [ ] Define "Detail Level" enum: `Compact` (name only) / `Standard` (name + PK/FK) / `Full` (all columns + types + constraints)
-- [ ] Define protocol messages for client<->server sync (join project, patch, cursor/presence, history request)
-- [ ] Versioned document envelope (project id, revision, timestamp, author)
+- [x] Define schema model types: `Project`, `Table`, `Field`, `Ref` (relationship), `Enum`, `Index`, `Note`, `Zone` (colored group), `StickyNote`
+- [x] Visual metadata types: position `{x,y}`, size, color, collapsed/detail-level, edge routing points/style
+- [x] Define "Detail Level" enum: `Compact` (name only) / `Standard` (name + PK/FK) / `Full` (all columns + types + constraints)
+- [x] Define protocol messages for client<->server sync (join project, patch, cursor/presence, history request)
+- [ ] Versioned document envelope (project id, revision, timestamp, author) — `RevisionMeta` stub exists, not wired to real revisions yet
 
 ## Phase 2 — DBML engine (`packages/dbml-engine`)
-- [ ] Wrap `@dbml/core`: DBML text -> internal schema model
+- [x] Wrap `@dbml/core`: DBML/SQL text -> raw Database model -> internal `Project` shape (`toProject`, basic mapping; visual metadata defaulted, not preserved yet)
 - [ ] Internal schema model -> DBML text (round-trip, preserve visual metadata as DBML comments or sidecar json)
-- [ ] SQL import: Postgres / MySQL / SQL Server / SQLite dump -> internal model (via `@dbml/core` importers)
-- [ ] SQL export: internal model -> DDL per dialect (via `@dbml/core` exporters)
+- [~] SQL import: Postgres / MySQL / SQL Server -> internal model (via `@dbml/core`). Note: `@dbml/core` has no SQLite dialect support, dropped from scope unless we add a separate SQLite DDL parser
+- [x] SQL export: internal model -> DDL per dialect (postgres/mysql/mssql via `@dbml/core` `ModelExporter`)
 - [ ] Diff tool: compare two schema versions (for history viewer / merge conflicts)
 - [ ] Validation: circular refs, missing FK targets, duplicate table/field names
 - [ ] Unit tests: fixtures for DBML<->SQL round trips per dialect
@@ -109,3 +109,4 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done
 - Auth model for multi-user on LAN: none / simple username / basic password — currently planned as simple local username, no external IdP.
 - Canvas library: React Flow chosen over building custom SVG/canvas engine, for speed; revisit if performance issues with very large schemas (500+ tables).
 - History storage: Yjs update log + periodic SQLite snapshots, avoids storing full doc on every change.
+- SQLite as a *SQL import/export dialect* is not supported by `@dbml/core` (only postgres/mysql/mssql/snowflake/schemarb). SQLite is still used as AthanorDB's own storage engine (unrelated concern) — if SQLite DDL import/export is required later, needs a separate parser/generator.
