@@ -1,0 +1,110 @@
+export type Id = string;
+
+export type DetailLevel = "compact" | "standard" | "full";
+
+export interface Position {
+  x: number;
+  y: number;
+}
+
+export interface Size {
+  width: number;
+  height: number;
+}
+
+export interface VisualStyle {
+  color?: string;
+  borderColor?: string;
+}
+
+export interface Field {
+  id: Id;
+  name: string;
+  type: string;
+  pk?: boolean;
+  unique?: boolean;
+  notNull?: boolean;
+  increment?: boolean;
+  default?: string;
+  note?: string;
+}
+
+export interface TableIndex {
+  id: Id;
+  fieldIds: Id[];
+  unique?: boolean;
+  name?: string;
+}
+
+export interface Table {
+  id: Id;
+  name: string;
+  schemaName?: string;
+  note?: string;
+  fields: Field[];
+  indexes: TableIndex[];
+  position: Position;
+  size?: Size;
+  style?: VisualStyle;
+  detailLevel: DetailLevel;
+}
+
+export type RefCardinality = "one-to-one" | "one-to-many" | "many-to-many";
+
+export interface RefEndpoint {
+  tableId: Id;
+  fieldId: Id;
+}
+
+export interface RoutingPoint {
+  x: number;
+  y: number;
+}
+
+export interface Ref {
+  id: Id;
+  name?: string;
+  from: RefEndpoint;
+  to: RefEndpoint;
+  cardinality: RefCardinality;
+  routingPoints?: RoutingPoint[];
+  style?: VisualStyle;
+}
+
+export interface EnumValue {
+  id: Id;
+  name: string;
+  note?: string;
+}
+
+export interface EnumDef {
+  id: Id;
+  name: string;
+  values: EnumValue[];
+}
+
+export interface Zone {
+  id: Id;
+  label: string;
+  position: Position;
+  size: Size;
+  style?: VisualStyle;
+}
+
+export interface StickyNote {
+  id: Id;
+  text: string;
+  position: Position;
+  size: Size;
+  style?: VisualStyle;
+}
+
+export interface Project {
+  id: Id;
+  name: string;
+  tables: Table[];
+  refs: Ref[];
+  enums: EnumDef[];
+  zones: Zone[];
+  stickyNotes: StickyNote[];
+}
