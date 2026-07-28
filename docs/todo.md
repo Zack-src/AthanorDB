@@ -34,13 +34,13 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done
 - [ ] Unit tests: fixtures for DBML<->SQL round trips per dialect
 
 ## Phase 3 — Server (`apps/server`)
-- [ ] SQLite schema: projects, revisions (append-only log), snapshots, users, sessions
-- [ ] REST: CRUD projects, list revisions, get/restore snapshot, import SQL, export SQL/DBML
-- [ ] WebSocket endpoint: Yjs doc sync (`y-websocket` provider) per project room
-- [ ] Yjs doc <-> SQLite persistence (periodic snapshot + append-only update log, `y-leveldb`-style pattern but for sqlite)
-- [ ] Presence: broadcast connected users, cursor position, selected table
-- [ ] History service: reconstruct any past revision from update log; label/pin named checkpoints
-- [ ] Local auth: simple username (no external identity provider), session cookie; multi-user = multiple local/LAN clients
+- [x] SQLite schema: projects, revisions (append-only log), snapshots (users/sessions not added yet — no real auth)
+- [~] REST: CRUD projects (create/list/get done), list revisions done; get/restore snapshot, import SQL, export SQL/DBML not done
+- [x] WebSocket endpoint: Yjs doc sync per project room — hand-rolled with `y-protocols/sync` + `y-protocols/awareness` + `lib0` (not the `y-websocket` server package, for control over SQLite persistence)
+- [x] Yjs doc <-> SQLite persistence: append-only `revisions` table (author + raw update bytes) + debounced `snapshots` table (full state); verified doc reconstructs correctly after server restart
+- [x] Presence: `Awareness` wired and broadcast to all conns in a room; UI to show cursors/avatars still pending (Phase 6)
+- [ ] History service: revisions are logged but nothing reconstructs an arbitrary past revision from the log yet (only latest snapshot is used)
+- [ ] Local auth: simple username; currently connections pass `?user=` query param with zero validation, good enough for local trust but not for LAN multi-user yet
 - [ ] Static file serving of built `apps/web` for single-process local deployment
 
 ## Phase 4 — Web editor shell (`apps/web`)
