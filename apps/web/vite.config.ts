@@ -11,6 +11,24 @@ export default defineConfig({
         target: "ws://localhost:3001",
         ws: true,
         configure: (proxy) => {
+          const origWs = proxy.ws;
+          proxy.ws = function (req: any, socket: any, head: any, options: any, callback: any) {
+            const wrappedCallback = (err: any, ...rest: any[]) => {
+              if (
+                err?.code === "ECONNABORTED" ||
+                err?.code === "ECONNRESET" ||
+                err?.message?.includes("ECONNABORTED") ||
+                err?.message?.includes("ECONNRESET")
+              ) {
+                return;
+              }
+              if (typeof callback === "function") {
+                callback(err, ...rest);
+              }
+            };
+            return origWs.call(this, req, socket, head, options, wrappedCallback);
+          };
+
           const origEmit = proxy.emit;
           proxy.emit = function (event: string | symbol, ...args: unknown[]) {
             if (event === "error") {
