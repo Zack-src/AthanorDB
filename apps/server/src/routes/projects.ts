@@ -21,7 +21,7 @@ function isSqlDialect(value: unknown): value is SqlDialect {
   return typeof value === "string" && (SQL_DIALECTS as string[]).includes(value);
 }
 
-function getProjectRow(id: string): { id: string; name: string } | undefined {
+export function getProjectRow(id: string): { id: string; name: string } | undefined {
   return db.prepare("SELECT id, name FROM projects WHERE id = ?").get(id) as { id: string; name: string } | undefined;
 }
 
@@ -44,13 +44,18 @@ export function registerProjectRoutes(app: FastifyInstance): void {
 
   app.post("/api/projects", async (req, reply) => {
     const { name } = (req.body ?? {}) as { name?: string };
-    if (!name?.trim()) {
+    const trimmed = name?.trim();
+    if (!trimmed) {
       reply.code(400);
       return { error: "name is required" };
     }
+    if (trimmed.length > 200) {
+      reply.code(400);
+      return { error: "name must be 200 characters or fewer" };
+    }
     const id = crypto.randomUUID();
-    db.prepare("INSERT INTO projects (id, name) VALUES (?, ?)").run(id, name.trim());
-    return reply.code(201).send({ id, name: name.trim() });
+    db.prepare("INSERT INTO projects (id, name) VALUES (?, ?)").run(id, trimmed);
+    return reply.code(201).send({ id, name: trimmed });
   });
 
   app.get("/api/projects/:id", async (req, reply) => {
@@ -157,7 +162,7 @@ export function registerProjectRoutes(app: FastifyInstance): void {
       return { error: "source is required" };
     }
 
-    let database: any;
+    let database: ReturnType<typeof parseSql>;
     if (body.dialect) {
       if (!isSqlDialect(body.dialect)) {
         reply.code(400);

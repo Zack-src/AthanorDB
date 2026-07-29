@@ -26,7 +26,10 @@ export class Room {
   private readonly conns = new Map<WebSocket, ConnMeta>();
   private snapshotTimer: NodeJS.Timeout | null = null;
 
-  constructor(private readonly projectId: string) {
+  constructor(
+    private readonly projectId: string,
+    private readonly onEmpty: () => void,
+  ) {
     const snapshot = loadSnapshot(projectId);
     if (snapshot) Y.applyUpdate(this.doc, snapshot);
 
@@ -39,7 +42,17 @@ export class Room {
       // resolved the acting username and passed it straight through as the
       // transaction's origin).
       const author = typeof origin === "string" ? origin : (this.conns.get(origin as WebSocket)?.author ?? "system");
-      appendRevision(this.projectId, author, update);
+      // A DB write failing here (constraint violation, disk full, whatever)
+      // must not crash the process — this runs inside a Yjs event handler,
+      // so an uncaught throw takes down every other project's connections
+      // along with this one. Log and keep going: the in-memory doc (and the
+      // broadcast below) stay correct even if this particular write didn't
+      // land.
+      try {
+        appendRevision(this.projectId, author, update);
+      } catch (err) {
+        console.error(`[room ${this.projectId}] failed to append revision:`, err);
+      }
       this.scheduleSnapshot();
 
       const encoder = encoding.createEncoder();
@@ -107,7 +120,20 @@ export class Room {
       awarenessProtocol.removeAwarenessStates(this.awareness, Array.from(meta.awarenessClientIds), null);
     }
     if (this.conns.size === 0) {
-      saveSnapshot(this.projectId, this.doc);
+      if (this.snapshotTimer) {
+        clearTimeout(this.snapshotTimer);
+        this.snapshotTimer = null;
+      }
+      try {
+        saveSnapshot(this.projectId, this.doc);
+      } catch (err) {
+        console.error(`[room ${this.projectId}] failed to save snapshot:`, err);
+      }
+      // Evict once nobody's connected — every project ever opened otherwise
+      // keeps a live Y.Doc + Awareness resident in memory for the process's
+      // entire lifetime. Safe: `getRoom` recreates it on demand from the
+      // snapshot just saved above, same as a fresh server start would.
+      this.onEmpty();
     }
   }
 
@@ -125,7 +151,11 @@ export class Room {
     if (this.snapshotTimer) return;
     this.snapshotTimer = setTimeout(() => {
       this.snapshotTimer = null;
-      saveSnapshot(this.projectId, this.doc);
+      try {
+        saveSnapshot(this.projectId, this.doc);
+      } catch (err) {
+        console.error(`[room ${this.projectId}] failed to save snapshot:`, err);
+      }
     }, SNAPSHOT_DEBOUNCE_MS);
   }
 }
@@ -135,7 +165,7 @@ const rooms = new Map<string, Room>();
 export function getRoom(projectId: string): Room {
   let room = rooms.get(projectId);
   if (!room) {
-    room = new Room(projectId);
+    room = new Room(projectId, () => rooms.delete(projectId));
     rooms.set(projectId, room);
   }
   return room;
