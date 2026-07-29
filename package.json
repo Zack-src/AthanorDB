@@ -9,9 +9,12 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm run dev:server\" \"npm run dev:web\"",
     "dev:web": "npm run dev -w apps/web",
     "dev:server": "npm run dev -w apps/server",
     "build": "npm run build -w packages/shared && npm run build -w packages/dbml-engine && npm run build -w apps/server && npm run build -w apps/web",
+    "start": "node apps/server/dist/index.js",
+    "backup": "npm run backup -w apps/server --",
     "test": "npm run test --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -22,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "concurrently": "^10.0.4",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
