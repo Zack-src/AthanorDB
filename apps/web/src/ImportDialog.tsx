@@ -3,7 +3,7 @@ import { UploadIcon } from "./Icons.js";
 import { Modal, FormatSelect } from "./Modal.js";
 import type { ExportFormat, SqlDialect } from "./types.js";
 
-function ImportDialog(props: { projectId: string; user: string; onClose: () => void }) {
+function ImportDialog(props: { projectId: string; onClose: () => void }) {
   const [source, setSource] = useState("");
   const [format, setFormat] = useState<ExportFormat>("dbml");
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +29,7 @@ function ImportDialog(props: { projectId: string; user: string; onClose: () => v
     const body: { source: string; dialect?: SqlDialect } = { source };
     if (format === "postgres" || format === "mysql" || format === "mssql") body.dialect = format;
     try {
-      const res = await fetch(`/api/projects/${props.projectId}/import?user=${encodeURIComponent(props.user)}`, {
+      const res = await fetch(`/api/projects/${props.projectId}/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
