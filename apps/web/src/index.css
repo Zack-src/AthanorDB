@@ -899,6 +899,22 @@ textarea {
   position: relative;
 }
 
+.side-panel-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 20;
+  transition: background-color 0.15s ease;
+}
+
+.side-panel-resizer:hover,
+.side-panel-resizer.is-resizing {
+  background-color: var(--color-primary);
+}
+
 .panel-expand-tab {
   position: absolute;
   top: 8px;
