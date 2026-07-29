@@ -409,7 +409,7 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
   const selectedEdgeFieldIds = useMemo(() => {
     const set = new Set<string>();
     for (const edge of edges) {
-      if (edge.selected && (edge.source === table.id || edge.target === table.id)) {
+      if ((edge.selected || edge.data?.connectedHighlight) && (edge.source === table.id || edge.target === table.id)) {
         if (edge.source === table.id && edge.sourceHandle) {
           set.add(edge.sourceHandle.replace(/-(left|right)-(source|target)$/, ""));
         }

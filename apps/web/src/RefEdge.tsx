@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
-import { EdgeLabelRenderer, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps } from "@xyflow/react";
+import { EdgeLabelRenderer, getSmoothStepPath, useReactFlow, useViewport, type Edge, type EdgeProps } from "@xyflow/react";
 import type { RefCardinality, RoutingPoint } from "@athanordb/shared";
 
 export interface RefEdgeData {
   cardinality: RefCardinality;
   routingPoints?: RoutingPoint[];
   highlightLinks?: boolean;
+  /** True when this edge touches the currently hovered or selected table — highlights it independently of the global `highlightLinks` toggle. */
+  connectedHighlight?: boolean;
   onRoutingPointsChange: (points: RoutingPoint[] | undefined) => void;
   onDeleteRef?: () => void;
   [key: string]: unknown;
@@ -262,12 +264,19 @@ export function RefEdge({
     };
   }, [selectedPointIndex, points]);
 
-  const isHighlighted = Boolean(data?.highlightLinks || selected);
+  const isHighlighted = Boolean(data?.highlightLinks || data?.connectedHighlight || selected);
   const strokeColor = isHighlighted ? style.stroke : "#475569";
-  const strokeWidth = selected ? 3 : isHighlighted ? 2.25 : 1.5;
+  // Path coordinates live in flow space, which React Flow scales down via a
+  // CSS transform as the user zooms out — so a fixed stroke-width/dasharray
+  // shrinks to sub-pixel and disappears at low zoom. Dividing by zoom here
+  // pre-compensates in flow units so the *rendered* (post-transform) size on
+  // screen stays constant regardless of zoom level.
+  const { zoom } = useViewport();
+  const zoomCompensation = 1 / Math.max(zoom, 0.01);
+  const strokeWidth = (selected ? 3 : isHighlighted ? 2.25 : 1.5) * zoomCompensation;
   const strokeOpacity = selected ? 1 : isHighlighted ? 0.85 : 0.45;
   const dotAnimation = isHighlighted ? `ref-edge-flow ${selected ? 0.5 : 0.8}s linear infinite` : "none";
-  const strokeDasharray = isHighlighted ? "0.1 9" : "none";
+  const strokeDasharray = isHighlighted ? `${0.1 * zoomCompensation} ${9 * zoomCompensation}` : "none";
   const showCardinalityBadge = isHighlighted;
 
   return (
@@ -279,14 +288,14 @@ export function RefEdge({
             d={split.half1}
             fill="none"
             className="ref-edge-flow-path"
-            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray }}
+            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray, vectorEffect: "non-scaling-stroke" }}
           />
           <path
             d={split.half2}
             fill="none"
             markerEnd={markerEnd}
             className="ref-edge-flow-path"
-            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray }}
+            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray, vectorEffect: "non-scaling-stroke" }}
           />
         </>
       ) : (

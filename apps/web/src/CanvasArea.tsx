@@ -77,6 +77,8 @@ export function CanvasArea(props: {
   fontScale: number;
   highlightLinks: boolean;
   onHighlightLinksChange: (highlight: boolean) => void;
+  /** Fires on table hover start/end (null on leave) — lets the parent highlight that table's refs. */
+  onTableHoverChange: (tableId: string | null) => void;
   projectId: string;
   /** Session's stable user id — only used to namespace the saved-viewport localStorage key, not an identity/authorship field. */
   viewportUserId: string;
@@ -129,6 +131,19 @@ export function CanvasArea(props: {
 
   const closeMenu = useCallback(() => setMenu(null), []);
 
+  const handleNodeMouseEnter = useCallback(
+    (_e: ReactMouseEvent, node: AllNodes) => {
+      if (node.type === "table") props.onTableHoverChange(node.id);
+    },
+    [props.onTableHoverChange],
+  );
+  const handleNodeMouseLeave = useCallback(
+    (_e: ReactMouseEvent, node: AllNodes) => {
+      if (node.type === "table") props.onTableHoverChange(null);
+    },
+    [props.onTableHoverChange],
+  );
+
   const handlePaneContextMenu = useCallback(
     (e: ReactMouseEvent | MouseEvent) => {
       e.preventDefault();
@@ -169,6 +184,8 @@ export function CanvasArea(props: {
         onNodesChange={props.onNodesChange}
         onEdgesDelete={props.onEdgesDelete}
         onPaneContextMenu={handlePaneContextMenu}
+        onNodeMouseEnter={handleNodeMouseEnter}
+        onNodeMouseLeave={handleNodeMouseLeave}
         onMoveStart={closeMenu}
         onMoveEnd={(_, viewport) =>
           localStorage.setItem(viewportKey(props.projectId, props.viewportUserId), JSON.stringify(viewport))
@@ -187,6 +204,7 @@ export function CanvasArea(props: {
         panOnScrollMode={PanOnScrollMode.Free}
         zoomOnScroll={false}
         zoomActivationKeyCode="Control"
+        minZoom={0.05}
       >
         <Background color="#33353c" gap={20} />
         <Controls showZoom={false}>

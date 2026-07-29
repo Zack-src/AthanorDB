@@ -272,6 +272,42 @@ export function App() {
   );
 }
 
+// Fallback size used the instant a table/zone/sticky mounts, before React
+// Flow's ResizeObserver reports its real `measured` box — self-corrects on
+// the next render once the real size lands, so accuracy here barely matters.
+const DEFAULT_TABLE_WIDTH = 220;
+const DEFAULT_TABLE_HEIGHT = 120;
+
+interface TableBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Chooses which side (left/right) each end of a ref should exit/enter from.
+ * Side-by-side tables get opposite sides (exit toward the other table, the
+ * shortest path). Vertically stacked tables — bounding boxes overlap on X —
+ * get the *same* side instead: opposite sides would force the smoothstep
+ * router to swing all the way across the full table width and back just to
+ * reach the far side, an unnecessary detour for tables sitting one above
+ * the other.
+ */
+function pickHandleSides(from: TableBox, to: TableBox): { fromSide: "left" | "right"; toSide: "left" | "right" } {
+  const dx = to.x + to.width / 2 - (from.x + from.width / 2);
+  const dy = to.y + to.height / 2 - (from.y + from.height / 2);
+  const overlapX = (from.width + to.width) / 2 - Math.abs(dx);
+  const overlapY = (from.height + to.height) / 2 - Math.abs(dy);
+  const stackedVertically = overlapX > 0 && overlapY <= 0;
+
+  if (stackedVertically) {
+    const side = dx >= 0 ? "right" : "left";
+    return { fromSide: side, toSide: side };
+  }
+  return dx >= 0 ? { fromSide: "right", toSide: "left" } : { fromSide: "left", toSide: "right" };
+}
+
 function ProjectEditor(props: {
   project: ProjectSummary;
   user: string;
@@ -289,6 +325,7 @@ function ProjectEditor(props: {
   const [showValidation, setShowValidation] = useState(false);
   const [fontScale, setFontScale] = useState(loadFontScale);
   const [highlightLinks, setHighlightLinks] = useState(loadHighlightLinks);
+  const [hoveredTableId, setHoveredTableId] = useState<string | null>(null);
 
   const handleHighlightLinksChange = (val: boolean) => {
     setHighlightLinks(val);
@@ -639,11 +676,27 @@ function ProjectEditor(props: {
       const fromNode = nodesById.get(ref.from.tableId);
       const toNode = nodesById.get(ref.to.tableId);
 
-      const fromX = fromNode?.position.x ?? fromTable?.position.x ?? 0;
-      const toX = toNode?.position.x ?? toTable?.position.x ?? 0;
+      const connectedHighlight =
+        hoveredTableId === ref.from.tableId ||
+        hoveredTableId === ref.to.tableId ||
+        Boolean(fromNode?.selected) ||
+        Boolean(toNode?.selected);
 
-      const isFromLeft = fromX <= toX;
+      const fromBox: TableBox = {
+        x: fromNode?.position.x ?? fromTable?.position.x ?? 0,
+        y: fromNode?.position.y ?? fromTable?.position.y ?? 0,
+        width: fromNode?.measured?.width ?? DEFAULT_TABLE_WIDTH,
+        height: fromNode?.measured?.height ?? DEFAULT_TABLE_HEIGHT,
+      };
+      const toBox: TableBox = {
+        x: toNode?.position.x ?? toTable?.position.x ?? 0,
+        y: toNode?.position.y ?? toTable?.position.y ?? 0,
+        width: toNode?.measured?.width ?? DEFAULT_TABLE_WIDTH,
+        height: toNode?.measured?.height ?? DEFAULT_TABLE_HEIGHT,
+      };
+
       const isSelfRef = ref.from.tableId === ref.to.tableId;
+      const { fromSide, toSide } = pickHandleSides(fromBox, toBox);
 
       const fromCompact = fromTable?.detailLevel === "compact";
       const toCompact = toTable?.detailLevel === "compact";
@@ -654,12 +707,9 @@ function ProjectEditor(props: {
       if (isSelfRef) {
         sourceHandle = fromCompact ? "header-right-source" : `${ref.from.fieldId}-right-source`;
         targetHandle = toCompact ? "header-right-target" : `${ref.to.fieldId}-right-target`;
-      } else if (isFromLeft) {
-        sourceHandle = fromCompact ? "header-right-source" : `${ref.from.fieldId}-right-source`;
-        targetHandle = toCompact ? "header-left-target" : `${ref.to.fieldId}-left-target`;
       } else {
-        sourceHandle = fromCompact ? "header-left-source" : `${ref.from.fieldId}-left-source`;
-        targetHandle = toCompact ? "header-right-target" : `${ref.to.fieldId}-right-target`;
+        sourceHandle = fromCompact ? `header-${fromSide}-source` : `${ref.from.fieldId}-${fromSide}-source`;
+        targetHandle = toCompact ? `header-${toSide}-target` : `${ref.to.fieldId}-${toSide}-target`;
       }
 
       return {
@@ -673,6 +723,7 @@ function ProjectEditor(props: {
           cardinality: ref.cardinality,
           routingPoints: ref.routingPoints,
           highlightLinks,
+          connectedHighlight,
           onRoutingPointsChange: (routingPoints: RoutingPoint[] | undefined) => {
             if (!doc) return;
             const refs = getRefsMap(doc);
@@ -688,7 +739,7 @@ function ProjectEditor(props: {
         markerEnd: { type: MarkerType.ArrowClosed, color: CARDINALITY_STYLE[ref.cardinality].stroke },
       };
     });
-  }, [liveProject, doc, nodes, highlightLinks]);
+  }, [liveProject, doc, nodes, highlightLinks, hoveredTableId]);
 
   const addTable = (position?: { x: number; y: number }) => {
     if (!doc) return;
@@ -859,6 +910,7 @@ function ProjectEditor(props: {
             fontScale={fontScale}
             highlightLinks={highlightLinks}
             onHighlightLinksChange={handleHighlightLinksChange}
+            onTableHoverChange={setHoveredTableId}
             projectId={project.id}
             viewportUserId={props.userId}
             exportRef={canvasExportRef}
