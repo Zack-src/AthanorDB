@@ -96,6 +96,7 @@ function DbmlPanel(props: { project: Project; projectId: string; onClose: () => 
   // applying it; the debounce this new keystroke started will re-sync and
   // re-refetch shortly with the newer text included.
   const dirtyRef = useRef(dirty);
+  const lastAppliedTextRef = useRef<string | null>(null);
 
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor;
@@ -125,13 +126,6 @@ function DbmlPanel(props: { project: Project; projectId: string; onClose: () => 
   // wherever the user actually is, their cursor and selection are simply
   // left alone — no snapshot/restore needed at all.
   //
-  // The server always emits LF, but Monaco's default model EOL is CRLF on
-  // Windows — left unnormalized, that alone makes every single refetch look
-  // "changed" and forces a replace even when nothing meaningful did.
-  // Normalizing to the model's own EOL first means a same-content sync is a
-  // true no-op, and keeps `text` state in the model's EOL convention so the
-  // Editor's own controlled-value diff doesn't independently detect a
-  // (spurious) mismatch and redo the replace itself.
   const setTextPreservingView = (next: string) => {
     const editor = editorRef.current;
     const model = editor?.getModel();
@@ -150,31 +144,44 @@ function DbmlPanel(props: { project: Project; projectId: string; onClose: () => 
     setText(normalized);
   };
 
-  const refetch = () => {
-    fetch(`/api/projects/${projectId}/export/dbml`)
-      .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`export failed (${res.status})`))))
-      .then((dbml) => {
-        if (dirtyRef.current) return;
-        setTextPreservingView(dbml);
-        setStatus("synced");
-      })
-      .catch((err) => setError((err as Error).message));
-  };
-
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
 
+  // Initial fetch on mount
   useEffect(() => {
-    if (!dirty) refetch();
-    // project is a new object on every doc change (see useProjectDoc), so it's
-    // exactly the "something changed remotely" signal this should refetch on.
+    fetch(`/api/projects/${projectId}/export/dbml`)
+      .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`export failed (${res.status})`))))
+      .then((dbml) => {
+        setTextPreservingView(dbml);
+        lastAppliedTextRef.current = dbml;
+        setStatus("synced");
+      })
+      .catch((err) => setError((err as Error).message));
+  }, [projectId]);
+
+  // Refetch only on remote changes when user is not dirty and content differs
+  useEffect(() => {
+    if (dirtyRef.current) return;
+    fetch(`/api/projects/${projectId}/export/dbml`)
+      .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`export failed (${res.status})`))))
+      .then((dbml) => {
+        if (dirtyRef.current) return;
+        const currentText = editorRef.current?.getModel()?.getValue() ?? text;
+        // Don't replace if current text matches or if last applied matches dbml
+        if (currentText === dbml || lastAppliedTextRef.current === dbml) return;
+        setTextPreservingView(dbml);
+        lastAppliedTextRef.current = dbml;
+        setStatus("synced");
+      })
+      .catch((err) => setError((err as Error).message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, dirty]);
+  }, [project, projectId]);
 
   const applyNow = useCallback(
     (source: string) => {
       setStatus("syncing");
+      lastAppliedTextRef.current = source;
       fetch(`/api/projects/${projectId}/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -220,7 +227,14 @@ function DbmlPanel(props: { project: Project; projectId: string; onClose: () => 
   };
 
   return (
-    <div className="side-panel nokey" style={{ width: 440 }}>
+    <div
+      className="side-panel nokey"
+      style={{ width: 440 }}
+      onKeyDownCapture={(e) => {
+        // Isolate keyboard events so canvas listeners & app shortcuts don't intercept editor keys
+        e.stopPropagation();
+      }}
+    >
       <div className="panel-header">
         <CodeIcon size={14} style={{ color: "var(--color-text-muted)" }} />
         <span className="panel-title">DBML</span>
@@ -233,21 +247,33 @@ function DbmlPanel(props: { project: Project; projectId: string; onClose: () => 
       <div style={{ flex: 1, minHeight: 0 }}>
         <Editor
           language="dbml"
-          theme="vs-dark"
+          theme="dbml-dark"
           value={text}
           onChange={handleChange}
           onMount={handleMount}
           options={{
             minimap: { enabled: false },
             fontSize: 13,
+            fontFamily: "'Fira Code', 'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+            fontLigatures: true,
             automaticLayout: true,
-            padding: { top: 10 },
+            padding: { top: 10, bottom: 10 },
             quickSuggestions: { other: true, comments: false, strings: false },
             suggestOnTriggerCharacters: true,
-            // Default true: Monaco strips indentation off a blank line the
-            // moment the cursor leaves it. Indent, Enter to leave a blank
-            // line for later, move away — comes back unindented. Off.
             trimAutoWhitespace: false,
+            tabSize: 2,
+            insertSpaces: true,
+            wordWrap: "on",
+            scrollBeyondLastLine: false,
+            smoothScrolling: true,
+            cursorBlinking: "smooth",
+            cursorSmoothCaretAnimation: "on",
+            bracketPairColorization: { enabled: true },
+            autoClosingBrackets: "always",
+            autoClosingQuotes: "always",
+            renderLineHighlight: "all",
+            formatOnType: false,
+            formatOnPaste: false,
           }}
         />
       </div>
