@@ -47,6 +47,7 @@ export function useProjectDoc(projectId: string, fallbackName: string, user: str
     ];
     const maps = [...editableMaps, getMetaMap(conn.doc)];
     maps.forEach((m) => m.observe(refresh));
+    conn.doc.on("update", refresh);
     refresh();
 
     // Only tracks local edits (default trackedOrigins is `{null}`); remote
@@ -58,6 +59,7 @@ export function useProjectDoc(projectId: string, fallbackName: string, user: str
     setAwareness(conn.awareness);
 
     return () => {
+      conn.doc.off("update", refresh);
       maps.forEach((m) => m.unobserve(refresh));
       manager.destroy();
       conn.disconnect();
