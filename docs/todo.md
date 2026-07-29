@@ -99,9 +99,9 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done
 
 ## Phase 9 — Import/Export completeness
 
-- [ ] Import: raw SQL DDL (multi-dialect), existing DBML file, (stretch) reverse-engineer from live DB connection (introspection)
-- [ ] Export: DBML file, SQL DDL per dialect, PNG/SVG snapshot of canvas, PDF
-- [ ] Round-trip fidelity tests (import SQL -> edit -> export SQL -> diff)
+- [~] Import: raw SQL DDL (multi-dialect) and DBML both already worked via paste; `ImportDialog` now also has a "Choose file…" button (`.dbml`/`.sql`/`.txt`) that reads the file client-side and auto-picks DBML vs. a starting SQL dialect from the extension (user can still override the dialect dropdown). Live-verified both a `.dbml` and a `.sql` upload actually import. Reverse-engineer from a live DB connection remains the explicit stretch goal — out of scope for now (would need a DB driver, credential handling, and real security review for accepting arbitrary connection strings).
+- [~] Export: DBML file, SQL DDL per dialect (via `ExportDialog`, copy/download) already worked. PNG/SVG snapshot of canvas and PDF still not built — bigger piece, needs a new dependency (canvas has no native rasterization; would need something like `html-to-image` to snapshot the React Flow viewport DOM) — flagging before pulling it in rather than adding a new dependency silently.
+- [x] Round-trip fidelity tests (import SQL -> edit -> export SQL -> diff) — `roundtrip.test.ts`: import sample SQL, simulate a user edit (add a column) on the resulting `Project`, export back to SQL, re-import, and reconcile through `mergeProjectIntoExisting` (the same reconciliation the app's own `/import` route does — diffing two independently-`toProject`'d results directly doesn't work, since `diffProjects` matches by entity *id* and a fresh parse gets fresh ids every time; this mirrors the real round trip instead of a fictional one). Asserts the diff against the merged result is empty (no spurious changes), ids stay stable, and PK/FK/unique/not-null survive. A second test repeats it across all three dialects (postgres/mysql/mssql).
 
 ## Phase 10 — Packaging & deployment
 
