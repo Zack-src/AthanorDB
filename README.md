@@ -40,7 +40,12 @@ Local-first, self-hosted, DBML-native database schema diagramming — think dbdi
 
 ## Running
 
-Requires Node 20+.
+Requires Node 20-23 (`.nvmrc`/`.node-version` pin 22). **Node 24 is not supported yet**: the server's SQLite driver (`better-sqlite3`) is a native addon and has no precompiled binary for Node 24 on any platform as of this writing, so `npm install` will fail to produce a working build unless you have C++ build tools (Visual Studio Build Tools + Python) installed to compile it from source. If you're on a locked-down corporate machine without those, install Node 22 instead — no admin rights needed:
+
+1. Download the "Windows Binary (.zip)" for Node 22 LTS from [nodejs.org](https://nodejs.org/en/download).
+2. Unzip it anywhere in your user profile (e.g. `C:\Users\<you>\node22`).
+3. Point your shell at it for this project, e.g. in PowerShell: `$env:PATH = "C:\Users\<you>\node22;$env:PATH"` (do this once per terminal session, or add it to your PowerShell profile).
+4. Confirm with `node -v` (should print `v22.x`), then proceed below as normal.
 
 ```bash
 npm install
