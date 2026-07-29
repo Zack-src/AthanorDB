@@ -27,6 +27,7 @@ import {
   getZonesMap,
   type DetailLevel,
   type Project,
+  type RevisionMeta,
 } from "@athanordb/shared";
 import {
   diffProjects,
@@ -1093,13 +1094,6 @@ function DbmlPanel(props: { project: Project; projectId: string; user: string; o
   );
 }
 
-interface RevisionMeta {
-  id: string;
-  author: string;
-  label: string | null;
-  created_at: string;
-}
-
 const DIFF_ROW_CLASS: Record<ChangeStatus, string> = {
   added: "diff-added",
   removed: "diff-removed",
@@ -1241,7 +1235,7 @@ function HistoryPanel(props: { projectId: string; currentProject: Project; user:
               >
                 <div className="history-item-title">{rev.label ? `🏷 ${rev.label}` : rev.author}</div>
                 <div className="history-item-sub">
-                  {rev.label ? `${rev.author} · ${rev.created_at}` : rev.created_at}
+                  {rev.label ? `${rev.author} · ${rev.createdAt}` : rev.createdAt}
                 </div>
               </button>
             </li>

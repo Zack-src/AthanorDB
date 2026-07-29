@@ -1,4 +1,5 @@
 import * as Y from "yjs";
+import type { RevisionMeta } from "@athanordb/shared";
 import { db } from "../db.js";
 
 export function loadSnapshot(projectId: string): Uint8Array | undefined {
@@ -29,14 +30,14 @@ export function setRevisionLabel(projectId: string, revisionId: string, label: s
   return result.changes > 0;
 }
 
-export function listRevisions(projectId: string) {
+export function listRevisions(projectId: string): RevisionMeta[] {
   // `created_at` only has 1s resolution (SQLite `datetime('now')`), so a burst
   // of edits within the same second would tie under that ordering. `rowid` is
   // SQLite's implicit, monotonically-increasing insertion order and costs
   // nothing extra to expose.
   return db
-    .prepare(`SELECT id, author, label, created_at FROM revisions WHERE project_id = ? ORDER BY rowid ASC`)
-    .all(projectId);
+    .prepare(`SELECT id, author, label, created_at AS createdAt FROM revisions WHERE project_id = ? ORDER BY rowid ASC`)
+    .all(projectId) as RevisionMeta[];
 }
 
 /**
