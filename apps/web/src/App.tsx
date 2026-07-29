@@ -1,28 +1,6 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type MouseEvent as ReactMouseEvent,
-  type MutableRefObject,
-  type ReactNode,
-} from "react";
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  useReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  MarkerType,
-  applyNodeChanges,
-  type NodeChange,
-  type Viewport,
-} from "@xyflow/react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReactFlowProvider, MarkerType, applyNodeChanges, type NodeChange } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import Editor, { type OnMount } from "@monaco-editor/react";
 import {
   getMetaMap,
   getRefsMap,
@@ -31,119 +9,45 @@ import {
   getZonesMap,
   type Comment,
   type DetailLevel,
-  type Project,
-  type RevisionMeta,
   type RoutingPoint,
 } from "@athanordb/shared";
-import {
-  diffProjects,
-  validateProject,
-  type ChangeStatus,
-  type ProjectDiff,
-  type ValidationIssue,
-} from "@athanordb/dbml-engine";
-import { toPng, toSvg } from "html-to-image";
-import { jsPDF } from "jspdf";
+import { validateProject, type ValidationIssue } from "@athanordb/dbml-engine";
 import { useProjectDoc } from "./useProjectDoc.js";
 import { useAwarenessStates } from "./useAwarenessStates.js";
 import { computeAutoLayout } from "./autoLayout.js";
 import { hashColor } from "./awarenessColor.js";
 import { DEFAULT_PALETTE } from "./ColorSwatchPicker.js";
-import { TableNode, type TableNodeType } from "./TableNode.js";
-import { RefEdge, CARDINALITY_STYLE, type RefEdgeType } from "./RefEdge.js";
-import { ZoneNode, type ZoneNodeType } from "./ZoneNode.js";
-import { StickyNoteNode, type StickyNoteNodeType } from "./StickyNoteNode.js";
-import { CursorNode, type CursorNodeType } from "./CursorNode.js";
+import { CARDINALITY_STYLE, type RefEdgeType } from "./RefEdge.js";
+import { type ZoneNodeType } from "./ZoneNode.js";
+import { type StickyNoteNodeType } from "./StickyNoteNode.js";
+import { type CursorNodeType } from "./CursorNode.js";
+import { type TableNodeType } from "./TableNode.js";
 import { PresenceList } from "./PresenceList.js";
-import type { Awareness } from "y-protocols/awareness.js";
+import { CanvasArea } from "./CanvasArea.js";
+import { ProjectList } from "./ProjectList.js";
+import { FONT_SCALE_KEY, FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadFontScale, loadUser, saveUser } from "./localPrefs.js";
+import type { CanvasExportHandle, CanvasNode, ProjectSummary } from "./types.js";
 import {
-  AlertTriangleIcon,
-  CheckCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
-  CloseIcon,
-  CodeIcon,
   DownloadIcon,
-  FolderIcon,
-  FrameIcon,
   LayoutGridIcon,
   LogoMarkIcon,
-  NoteIcon,
-  PlusIcon,
   RedoIcon,
   ShieldCheckIcon,
-  TableIcon,
   UndoIcon,
   UploadIcon,
-  type IconProps,
 } from "./Icons.js";
 
-const nodeTypes = { table: TableNode, zone: ZoneNode, sticky: StickyNoteNode, cursor: CursorNode };
-const edgeTypes = { ref: RefEdge };
-
-type CanvasNode = TableNodeType | ZoneNodeType | StickyNoteNodeType;
-type AllNodes = CanvasNode | CursorNodeType;
-
-interface ProjectSummary {
-  id: string;
-  name: string;
-  created_at: string;
-}
-
-type SqlDialect = "postgres" | "mysql" | "mssql";
-type ImageFormat = "png" | "svg" | "pdf";
-type ExportFormat = "dbml" | SqlDialect | ImageFormat;
-
-interface CanvasImageCapture {
-  dataUrl: string;
-  width: number;
-  height: number;
-}
-
-interface CanvasExportHandle {
-  capture: (format: "png" | "svg") => Promise<CanvasImageCapture>;
-}
-
-const USER_KEY = "athanordb.user";
-
-function loadUser(): string {
-  const saved = localStorage.getItem(USER_KEY);
-  if (saved) return saved;
-  const generated = `user-${Math.random().toString(36).slice(2, 8)}`;
-  localStorage.setItem(USER_KEY, generated);
-  return generated;
-}
-
-// Canvas text size (accessibility) — a personal display preference, not
-// project data, so it lives in localStorage rather than the shared doc.
-const FONT_SCALE_KEY = "athanordb.canvasFontScale";
-const FONT_SCALE_MIN = 0.85;
-const FONT_SCALE_MAX = 1.6;
-const FONT_SCALE_STEP = 0.15;
-
-function loadFontScale(): number {
-  const saved = Number(localStorage.getItem(FONT_SCALE_KEY));
-  return saved >= FONT_SCALE_MIN && saved <= FONT_SCALE_MAX ? saved : 1;
-}
-
-// Canvas pan/zoom — also personal, and specific to a (project, user) pair
-// rather than the project itself, so it's keyed localStorage rather than
-// shared-doc state: two people on the same project shouldn't yank each
-// other's viewport around, and the same person's saved position shouldn't
-// follow them into a different project.
-function viewportKey(projectId: string, user: string): string {
-  return `athanordb.viewport.${projectId}.${user}`;
-}
-
-function loadViewport(projectId: string, user: string): Viewport | null {
-  try {
-    const raw = localStorage.getItem(viewportKey(projectId, user));
-    return raw ? (JSON.parse(raw) as Viewport) : null;
-  } catch {
-    return null;
-  }
-}
+// Each of these is only needed once a specific panel/dialog is actually
+// opened — Monaco (DbmlPanel) especially, which used to load eagerly for
+// every visit including the project-list page that never touches it.
+const DbmlPanel = lazy(() => import("./DbmlPanel.js"));
+const ImportDialog = lazy(() => import("./ImportDialog.js"));
+const ExportDialog = lazy(() => import("./ExportDialog.js"));
+const HistoryPanel = lazy(() => import("./HistoryPanel.js"));
+const ValidationPanel = lazy(() => import("./ValidationPanel.js"));
 
 export function App() {
   const [user, setUser] = useState(loadUser);
@@ -167,7 +71,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(USER_KEY, user);
+    saveUser(user);
   }, [user]);
 
   const createProject = async () => {
@@ -227,51 +131,6 @@ export function App() {
           onCreate={createProject}
           onOpen={setOpenProject}
         />
-      </div>
-    </div>
-  );
-}
-
-function ProjectList(props: {
-  projects: ProjectSummary[];
-  newName: string;
-  onNewNameChange: (v: string) => void;
-  onCreate: () => void;
-  onOpen: (p: ProjectSummary) => void;
-}) {
-  const { projects, newName, onNewNameChange, onCreate, onOpen } = props;
-  return (
-    <div className="project-list-page">
-      <div className="project-list-inner">
-        <h1 className="project-list-heading">Projects</h1>
-        <p className="project-list-sub">DBML-native schema diagrams, versioned and shared live.</p>
-        <div className="project-create-row">
-          <input
-            className="input"
-            placeholder="New project name"
-            value={newName}
-            onChange={(e) => onNewNameChange(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onCreate()}
-          />
-          <button className="btn btn-primary" onClick={onCreate}>
-            <PlusIcon size={14} /> Create
-          </button>
-        </div>
-        {projects.length === 0 ? (
-          <div className="empty-state">No projects yet — create one above to get started.</div>
-        ) : (
-          <div className="project-grid">
-            {projects.map((p) => (
-              <button key={p.id} className="project-card" onClick={() => onOpen(p)}>
-                <span className="project-card-icon">
-                  <FolderIcon size={17} />
-                </span>
-                <div className="project-card-name">{p.name}</div>
-                <div className="project-card-date">{p.created_at}</div>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -465,7 +324,7 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
     // nodes are always non-interactive (draggable/selectable/deletable:
     // false), so they never actually produce a change event; safe to narrow
     // back to CanvasNode for the part of this function that persists to the doc.
-    (changes: NodeChange<AllNodes>[]) => {
+    (changes: NodeChange<CanvasNode | CursorNodeType>[]) => {
       setNodes((nds) => applyNodeChanges(changes as NodeChange<CanvasNode>[], nds));
       if (!doc) return;
       const tables = getTablesMap(doc);
@@ -744,7 +603,9 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
       </header>
       <div className="canvas-container">
         {dbmlOpen && liveProject ? (
-          <DbmlPanel project={liveProject} projectId={project.id} user={user} onClose={() => setDbmlOpen(false)} />
+          <Suspense fallback={<div className="side-panel" style={{ width: 440 }} />}>
+            <DbmlPanel project={liveProject} projectId={project.id} user={user} onClose={() => setDbmlOpen(false)} />
+          </Suspense>
         ) : (
           <button className="panel-expand-tab" onClick={() => setDbmlOpen(true)} title="Show DBML editor">
             <ChevronRightIcon size={15} />
@@ -767,852 +628,26 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
           />
         </ReactFlowProvider>
       </div>
-      {showImport && <ImportDialog projectId={project.id} user={user} onClose={() => setShowImport(false)} />}
-      {showExport && liveProject && (
-        <ExportDialog
-          projectId={project.id}
-          projectName={project.name}
-          captureCanvasImage={captureCanvasImage}
-          onClose={() => setShowExport(false)}
-        />
-      )}
-      {showHistory && liveProject && (
-        <HistoryPanel
-          projectId={project.id}
-          currentProject={liveProject}
-          user={user}
-          onClose={() => setShowHistory(false)}
-        />
-      )}
-      {showValidation && <ValidationPanel issues={validationIssues} onClose={() => setShowValidation(false)} />}
-    </div>
-  );
-}
-
-/**
- * Split out from `ProjectEditor` so it can call `useReactFlow()` — that hook
- * only works inside a `ReactFlowProvider`, and `screenToFlowPosition` is what
- * turns a mouse move into the flow-space coordinate broadcast as this user's
- * cursor, so peers' `CursorNode`s land in the right spot regardless of each
- * viewer's own pan/zoom.
- */
-interface CanvasContextMenuState {
-  screenX: number;
-  screenY: number;
-  flowPosition: { x: number; y: number };
-}
-
-/** Right-click-on-empty-canvas menu — the only way to add a table/zone/sticky note besides editing DBML directly. */
-function CanvasContextMenu(props: {
-  menu: CanvasContextMenuState;
-  onAddTable: (position: { x: number; y: number }) => void;
-  onAddZone: (position: { x: number; y: number }) => void;
-  onAddNote: (position: { x: number; y: number }) => void;
-  onClose: () => void;
-}) {
-  const { menu } = props;
-  const run = (fn: (position: { x: number; y: number }) => void) => {
-    fn(menu.flowPosition);
-    props.onClose();
-  };
-  return (
-    <div className="context-menu" style={{ left: menu.screenX, top: menu.screenY }} onClick={(e) => e.stopPropagation()}>
-      <button className="context-menu-item" onClick={() => run(props.onAddTable)}>
-        <TableIcon size={14} /> Add table
-      </button>
-      <button className="context-menu-item" onClick={() => run(props.onAddZone)}>
-        <FrameIcon size={14} /> Add zone
-      </button>
-      <button className="context-menu-item" onClick={() => run(props.onAddNote)}>
-        <NoteIcon size={14} /> Add sticky note
-      </button>
-    </div>
-  );
-}
-
-function CanvasArea(props: {
-  nodes: CanvasNode[];
-  cursorNodes: CursorNodeType[];
-  edges: RefEdgeType[];
-  onNodesChange: (changes: NodeChange<AllNodes>[]) => void;
-  awareness: Awareness | null;
-  onAddTable: (position: { x: number; y: number }) => void;
-  onAddZone: (position: { x: number; y: number }) => void;
-  onAddNote: (position: { x: number; y: number }) => void;
-  fontScale: number;
-  projectId: string;
-  user: string;
-  exportRef: MutableRefObject<CanvasExportHandle | null>;
-}) {
-  const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow();
-  const [menu, setMenu] = useState<CanvasContextMenuState | null>(null);
-  // Lazy initializer: read once at mount, not on every render — this decides
-  // whether the very first render asks React Flow to `fitView` or restore
-  // exactly where this user left the canvas last time.
-  const [initialViewport] = useState(() => loadViewport(props.projectId, props.user));
-
-  // Exposed imperatively (not via props/state) because the Export dialog
-  // that triggers this lives outside the ReactFlowProvider this component is
-  // rendered inside — it has no other way to reach `fitView`/`getViewport`.
-  // Cheap to reassign every render: pure closure construction, no DOM/side
-  // effects until actually invoked.
-  props.exportRef.current = {
-    capture: async (format) => {
-      const paneEl = document.querySelector(".react-flow__pane") as HTMLElement | null;
-      if (!paneEl) throw new Error("Canvas is not ready yet");
-      const prevViewport = getViewport();
-      // Fit the *entire* diagram into the current pane size first — reuses
-      // React Flow's own (already correct) fit logic instead of hand-rolling
-      // bounds/zoom math, and means the export isn't just whatever happens
-      // to be on-screen from the user's last pan/zoom.
-      fitView({ padding: 0.15, duration: 0 });
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const width = paneEl.clientWidth;
-      const height = paneEl.clientHeight;
-      try {
-        const options = { backgroundColor: "#17181b", width, height, pixelRatio: format === "png" ? 2 : 1 };
-        const dataUrl = format === "png" ? await toPng(paneEl, options) : await toSvg(paneEl, options);
-        return { dataUrl, width, height };
-      } finally {
-        setViewport(prevViewport, { duration: 0 });
-      }
-    },
-  };
-
-  const handleMouseMove = (e: ReactMouseEvent) => {
-    props.awareness?.setLocalStateField("cursor", screenToFlowPosition({ x: e.clientX, y: e.clientY }));
-  };
-  const handleMouseLeave = () => {
-    props.awareness?.setLocalStateField("cursor", null);
-  };
-
-  const closeMenu = useCallback(() => setMenu(null), []);
-
-  const handlePaneContextMenu = useCallback(
-    (e: ReactMouseEvent | MouseEvent) => {
-      e.preventDefault();
-      setMenu({
-        screenX: e.clientX,
-        screenY: e.clientY,
-        flowPosition: screenToFlowPosition({ x: e.clientX, y: e.clientY }),
-      });
-    },
-    [screenToFlowPosition],
-  );
-
-  useEffect(() => {
-    if (!menu) return;
-    const onKeyDown = (e: KeyboardEvent) => e.key === "Escape" && closeMenu();
-    window.addEventListener("click", closeMenu);
-    window.addEventListener("wheel", closeMenu);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("click", closeMenu);
-      window.removeEventListener("wheel", closeMenu);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [menu, closeMenu]);
-
-  const nodes: AllNodes[] = [...props.nodes, ...props.cursorNodes];
-
-  return (
-    <div
-      className="canvas-pane"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      style={{ "--canvas-font-scale": props.fontScale } as CSSProperties}
-    >
-      <ReactFlow
-        nodes={nodes}
-        edges={props.edges}
-        onNodesChange={props.onNodesChange}
-        onPaneContextMenu={handlePaneContextMenu}
-        onMoveStart={closeMenu}
-        onMoveEnd={(_, viewport) => localStorage.setItem(viewportKey(props.projectId, props.user), JSON.stringify(viewport))}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        deleteKeyCode={["Backspace", "Delete"]}
-        snapToGrid
-        snapGrid={[10, 10]}
-        fitView={!initialViewport}
-        defaultViewport={initialViewport ?? undefined}
-      >
-        <Background color="#33353c" gap={20} />
-        <Controls />
-        <MiniMap pannable zoomable bgColor="#1f2024" nodeColor="#4b4d8a" maskColor="rgba(23,24,27,0.75)" />
-      </ReactFlow>
-      {menu && (
-        <CanvasContextMenu
-          menu={menu}
-          onAddTable={props.onAddTable}
-          onAddZone={props.onAddZone}
-          onAddNote={props.onAddNote}
-          onClose={closeMenu}
-        />
-      )}
-    </div>
-  );
-}
-
-function Modal(props: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
-  return (
-    <div className="modal-overlay" onClick={props.onClose}>
-      <div className={`modal${props.wide ? " modal-wide" : ""}`} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <span className="modal-title">{props.title}</span>
-          <button className="btn btn-icon btn-ghost" onClick={props.onClose} title="Close">
-            <CloseIcon size={16} />
-          </button>
-        </div>
-        <div className="modal-body">{props.children}</div>
-      </div>
-    </div>
-  );
-}
-
-function FormatSelect(props: { value: ExportFormat; onChange: (v: ExportFormat) => void; includeImageFormats?: boolean }) {
-  return (
-    <select className="select" value={props.value} onChange={(e) => props.onChange(e.target.value as ExportFormat)}>
-      <option value="dbml">DBML</option>
-      <option value="postgres">SQL — Postgres</option>
-      <option value="mysql">SQL — MySQL</option>
-      <option value="mssql">SQL — SQL Server</option>
-      {props.includeImageFormats && (
-        <>
-          <option value="png">Image — PNG</option>
-          <option value="svg">Image — SVG</option>
-          <option value="pdf">PDF</option>
-        </>
-      )}
-    </select>
-  );
-}
-
-function ImportDialog(props: { projectId: string; user: string; onClose: () => void }) {
-  const [source, setSource] = useState("");
-  const [format, setFormat] = useState<ExportFormat>("dbml");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFile = async (file: File) => {
-    setSource(await file.text());
-    setFileName(file.name);
-    setError(null);
-    if (/\.sql$/i.test(file.name)) {
-      if (format === "dbml") setFormat("postgres");
-    } else {
-      setFormat("dbml");
-    }
-  };
-
-  const submit = async () => {
-    if (!source.trim()) return;
-    setBusy(true);
-    setError(null);
-    const body: { source: string; dialect?: SqlDialect } = { source };
-    if (format === "postgres" || format === "mysql" || format === "mssql") body.dialect = format;
-    try {
-      const res = await fetch(`/api/projects/${props.projectId}/import?user=${encodeURIComponent(props.user)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        props.onClose();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? `Import failed (${res.status})`);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Modal title="Import schema" onClose={props.onClose}>
-      <p className="modal-hint">
-        Matches tables/fields by name — existing positions and detail levels are kept; anything no longer in the source
-        is removed.
-      </p>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <FormatSelect value={format} onChange={setFormat} />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".dbml,.sql,.txt"
-          style={{ display: "none" }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleFile(file);
-            e.target.value = "";
-          }}
-        />
-        <button className="btn" onClick={() => fileInputRef.current?.click()}>
-          <UploadIcon size={13} /> {fileName ?? "Choose file…"}
-        </button>
-        <span style={{ flex: 1 }} />
-        <button className="btn btn-primary" onClick={submit} disabled={busy || !source.trim()}>
-          {busy ? "Importing…" : "Import"}
-        </button>
-      </div>
-      <textarea
-        className="textarea textarea-code"
-        value={source}
-        onChange={(e) => {
-          setSource(e.target.value);
-          setFileName(null);
-        }}
-        placeholder={format === "dbml" ? "Paste DBML, or choose a .dbml/.sql file…" : "Paste SQL DDL, or choose a .dbml/.sql file…"}
-        style={{ width: "100%", height: 320 }}
-      />
-      {error && <div className="modal-error">{error}</div>}
-    </Modal>
-  );
-}
-
-/** JPEG has no alpha channel, so the background must be painted in explicitly before drawing the (possibly-transparent) source image on top. */
-function pngDataUrlToJpeg(pngDataUrl: string, width: number, height: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        reject(new Error("2D canvas context unavailable"));
-        return;
-      }
-      ctx.fillStyle = "#17181b";
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", 0.92));
-    };
-    img.onerror = () => reject(new Error("Failed to prepare the canvas snapshot for PDF export"));
-    img.src = pngDataUrl;
-  });
-}
-
-const IMAGE_FORMATS = new Set<ExportFormat>(["png", "svg", "pdf"]);
-
-function ExportDialog(props: {
-  projectId: string;
-  projectName: string;
-  captureCanvasImage: (format: "png" | "svg") => Promise<CanvasImageCapture>;
-  onClose: () => void;
-}) {
-  const [format, setFormat] = useState<ExportFormat>("dbml");
-  const [text, setText] = useState("");
-  const [image, setImage] = useState<CanvasImageCapture | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const isImage = IMAGE_FORMATS.has(format);
-
-  useEffect(() => {
-    if (isImage) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the fetch this same effect kicks off
-    setBusy(true);
-    setError(null);
-    const url =
-      format === "dbml"
-        ? `/api/projects/${props.projectId}/export/dbml?visual=1`
-        : `/api/projects/${props.projectId}/export/sql?dialect=${format}`;
-    fetch(url)
-      .then(async (res) => setText(res.ok ? await res.text() : `Error: ${res.status}`))
-      .finally(() => setBusy(false));
-  }, [format, isImage, props.projectId]);
-
-  useEffect(() => {
-    if (!isImage) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the capture this same effect kicks off
-    setBusy(true);
-    setError(null);
-    props.captureCanvasImage(format === "svg" ? "svg" : "png")
-      .then(setImage)
-      .catch((err) => setError((err as Error).message))
-      .finally(() => setBusy(false));
-    // props.captureCanvasImage is a useCallback with an empty dep array in
-    // the parent, so it's stable — omitting it here (rather than in the
-    // caller) avoids re-capturing every time the parent re-renders for
-    // unrelated reasons.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [format, isImage]);
-
-  const copy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  };
-
-  const downloadDataUrl = (dataUrl: string, filename: string) => {
-    const a = document.createElement("a");
-    a.href = dataUrl;
-    a.download = filename;
-    a.click();
-  };
-
-  const download = async () => {
-    if (format === "png" || format === "svg") {
-      if (image) downloadDataUrl(image.dataUrl, `${props.projectName}.${format}`);
-      return;
-    }
-    if (format === "pdf") {
-      if (!image) return;
-      // jsPDF's addImage embeds a PNG essentially uncompressed — a two-table
-      // diagram came out over 10MB. Re-encoding to JPEG first (this is a
-      // decorative snapshot, not something needing lossless fidelity) brings
-      // that down by roughly two orders of magnitude.
-      const jpeg = await pngDataUrlToJpeg(image.dataUrl, image.width, image.height);
-      const orientation = image.width >= image.height ? "landscape" : "portrait";
-      const pdf = new jsPDF({ orientation, unit: "px", format: [image.width, image.height] });
-      pdf.addImage(jpeg, "JPEG", 0, 0, image.width, image.height);
-      pdf.save(`${props.projectName}.pdf`);
-      return;
-    }
-    const ext = format === "dbml" ? "dbml" : "sql";
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    downloadDataUrl(url, `${props.projectName}.${ext}`);
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <Modal title="Export schema" onClose={props.onClose}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <FormatSelect value={format} onChange={setFormat} includeImageFormats />
-        {!isImage && (
-          <button className="btn" onClick={copy} disabled={busy}>
-            {copied ? "Copied" : "Copy"}
-          </button>
-        )}
-        <button className="btn btn-primary" onClick={download} disabled={busy || (isImage && !image)}>
-          <DownloadIcon size={13} /> Download
-        </button>
-      </div>
-      {isImage ? (
-        <div className="export-image-preview">
-          {busy && <span style={{ color: "var(--color-text-muted)" }}>Rendering canvas…</span>}
-          {!busy && image && <img src={image.dataUrl} alt="Canvas snapshot preview" />}
-          {format === "pdf" && !busy && image && (
-            <p className="modal-hint" style={{ marginTop: 8 }}>
-              Downloads as a single-page PDF with this snapshot filling the page.
-            </p>
-          )}
-        </div>
-      ) : (
-        <textarea
-          readOnly
-          className="textarea textarea-code"
-          value={busy ? "Loading…" : text}
-          style={{ width: "100%", height: 320 }}
-        />
-      )}
-      {error && <div className="modal-error">{error}</div>}
-    </Modal>
-  );
-}
-
-type SyncStatus = "idle" | "typing" | "syncing" | "synced" | "error";
-
-function SyncStatusPill({ status }: { status: SyncStatus }) {
-  if (status === "idle") return null;
-  const dotClass = status === "synced" ? "sync-dot-synced" : status === "error" ? "sync-dot-error" : "sync-dot-syncing";
-  const label = { idle: "", typing: "Editing…", syncing: "Syncing…", synced: "Synced", error: "Sync error" }[status];
-  return (
-    <span className="sync-status">
-      <span className={`sync-dot ${dotClass}`} />
-      {label}
-    </span>
-  );
-}
-
-const DBML_SYNC_DEBOUNCE_MS = 600;
-
-/**
- * Live DBML view of the project — edits sync to the canvas automatically as
- * you type, debounced, rather than requiring an explicit "Apply". Text comes
- * from the server's `/export/dbml` (same route `ExportDialog` uses) rather
- * than generating it client-side — `dbml-engine` wraps `@dbml/core`, which
- * instantiates a parser at module scope, so importing even the pure-string
- * `projectToDbml` from it would drag that whole (multi-MB) parser library
- * into the browser bundle. Re-fetches on every remote doc change *unless*
- * the user has unconfirmed local edits ("dirty") — otherwise a peer's edit
- * would silently overwrite what they're typing. Auto-sync POSTs to the same
- * `/import` route `ImportDialog` uses, which merges by name server-side so
- * tables/fields untouched by the edit keep their id, position, and detail
- * level rather than resetting.
- *
- * Known limitation: because this round-trips through the server (parsing has
- * to stay server-side — see above), edits made here arrive back over the
- * WebSocket like any remote change and so fall outside the local
- * `Y.UndoManager`'s tracked origins. Ctrl+Z undoes canvas edits but not DBML
- * panel edits; only the "Restore this revision" history flow can revert them.
- */
-function DbmlPanel(props: { project: Project; projectId: string; user: string; onClose: () => void }) {
-  const { project, projectId, user } = props;
-  const [text, setText] = useState("");
-  const [dirty, setDirty] = useState(false);
-  const [status, setStatus] = useState<SyncStatus>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
-  // executeEdits() below fires Monaco's onDidChangeModelContent same as a
-  // real keystroke would — @monaco-editor/react only suppresses that for
-  // edits *it* drives via the controlled `value` prop, not edits made
-  // directly through the editor API. Without this flag, our own remote-sync
-  // replace loops back through `handleChange` as if the user had just typed
-  // the (already-applied) server text, marking the doc dirty and
-  // re-POSTing it to /import — a redundant round-trip at best, and a race
-  // that can transiently wipe content at worst when it overlaps a real edit.
-  const suppressNextChangeRef = useRef(false);
-
-  const handleMount: OnMount = (editor) => {
-    editorRef.current = editor;
-  };
-
-  // Server-reformatted DBML replaces the editor's content on every sync (own
-  // edits included, once the debounce round-trips). A plain `setText` would
-  // hand that new value to Monaco as a full-document replace with no
-  // explicit cursor target, which snaps the caret to wherever Monaco's
-  // default post-edit position lands — reported as the view "jumping"
-  // mid-type. Driving the replace through the editor API directly lets us
-  // snapshot/restore cursor, selection and scroll position around it.
-  //
-  // The server always emits LF, but Monaco's default model EOL is CRLF on
-  // Windows — left unnormalized, that alone makes every single refetch look
-  // "changed" and forces a full-buffer replace even when nothing meaningful
-  // did. Normalizing to the model's own EOL first means a same-content sync
-  // is a true no-op (no replace, no jump), and keeps `text` state in the
-  // model's EOL convention so the Editor's own controlled-value diff doesn't
-  // independently detect a (spurious) mismatch and redo the replace itself.
-  const setTextPreservingView = (next: string) => {
-    const editor = editorRef.current;
-    const model = editor?.getModel();
-    if (!editor || !model) {
-      setText(next);
-      return;
-    }
-    const normalized = next.replace(/\r\n|\n/g, model.getEOL());
-    if (model.getValue() !== normalized) {
-      suppressNextChangeRef.current = true;
-      const viewState = editor.saveViewState();
-      editor.executeEdits("remote-sync", [{ range: model.getFullModelRange(), text: normalized }]);
-      if (viewState) editor.restoreViewState(viewState);
-    }
-    setText(normalized);
-  };
-
-  const refetch = () => {
-    fetch(`/api/projects/${projectId}/export/dbml`)
-      .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`export failed (${res.status})`))))
-      .then((dbml) => {
-        setTextPreservingView(dbml);
-        setStatus("synced");
-      })
-      .catch((err) => setError((err as Error).message));
-  };
-
-  useEffect(() => {
-    if (!dirty) refetch();
-    // project is a new object on every doc change (see useProjectDoc), so it's
-    // exactly the "something changed remotely" signal this should refetch on.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, dirty]);
-
-  const applyNow = useCallback(
-    (source: string) => {
-      setStatus("syncing");
-      fetch(`/api/projects/${projectId}/import?user=${encodeURIComponent(user)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source }),
-      })
-        .then(async (res) => {
-          if (res.ok) {
-            setDirty(false);
-            setError(null);
-            setStatus("synced");
-          } else {
-            const data = await res.json().catch(() => ({}));
-            setError(data.error ?? `Import failed (${res.status})`);
-            setStatus("error");
-          }
-        })
-        .catch((err) => {
-          setError((err as Error).message);
-          setStatus("error");
-        });
-    },
-    [projectId, user],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
-
-  const handleChange = (value: string | undefined) => {
-    if (suppressNextChangeRef.current) {
-      suppressNextChangeRef.current = false;
-      return;
-    }
-    const next = value ?? "";
-    setText(next);
-    setDirty(true);
-    setStatus("typing");
-    setError(null);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => applyNow(next), DBML_SYNC_DEBOUNCE_MS);
-  };
-
-  return (
-    <div className="side-panel nokey" style={{ width: 440 }}>
-      <div className="panel-header">
-        <CodeIcon size={14} style={{ color: "var(--color-text-muted)" }} />
-        <span className="panel-title">DBML</span>
-        <SyncStatusPill status={status} />
-        <span style={{ marginLeft: "auto" }} />
-        <button className="btn btn-icon btn-ghost" onClick={props.onClose} title="Collapse editor">
-          <ChevronLeftIcon size={16} />
-        </button>
-      </div>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <Editor
-          language="dbml"
-          theme="vs-dark"
-          value={text}
-          onChange={handleChange}
-          onMount={handleMount}
-          options={{ minimap: { enabled: false }, fontSize: 13, automaticLayout: true, padding: { top: 10 } }}
-        />
-      </div>
-      {error && (
-        <div className="modal-error" style={{ margin: 8, borderRadius: "var(--radius-sm)" }}>
-          {error}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const DIFF_ROW_CLASS: Record<ChangeStatus, string> = {
-  added: "diff-added",
-  removed: "diff-removed",
-  changed: "diff-changed",
-};
-const DIFF_SIGN: Record<ChangeStatus, string> = { added: "+", removed: "-", changed: "~" };
-
-function DiffSummary(props: { diff: ProjectDiff }) {
-  const { tables, refs } = props.diff;
-  if (tables.length === 0 && refs.length === 0) {
-    return <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>No schema changes since this revision.</div>;
-  }
-  return (
-    <div>
-      {tables.map((t) => (
-        <div key={t.id} className={`diff-row ${DIFF_ROW_CLASS[t.status]}`}>
-          {DIFF_SIGN[t.status]} Table {t.renamedFrom ? `${t.renamedFrom} → ${t.name}` : t.name}
-          {t.fields.length > 0 && (
-            <span style={{ color: "var(--color-text-muted)" }}>
-              {" "}
-              ({t.fields.map((f) => `${DIFF_SIGN[f.status]}${f.name}`).join(", ")})
-            </span>
-          )}
-        </div>
-      ))}
-      {refs.map((r) => (
-        <div key={r.id} className={`diff-row ${DIFF_ROW_CLASS[r.status]}`}>
-          {DIFF_SIGN[r.status]} Ref{(r.after ?? r.before)?.name ? ` ${(r.after ?? r.before)!.name}` : ""}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Revision timeline: list of past revisions (author + timestamp), DBML
- * preview of whichever one is selected (via the export-at-revision route,
- * mirroring `reconstructDocAtRevision`), a schema-level diff against the
- * current live state (`diffProjects` — safe to use client-side, unlike
- * `dbml.ts`'s exports, since it has no `@dbml/core` import to drag in), and a
- * restore button hitting the existing non-destructive restore endpoint
- * (creates a new revision rather than rewriting history).
- */
-function HistoryPanel(props: { projectId: string; currentProject: Project; user: string; onClose: () => void }) {
-  const [revisions, setRevisions] = useState<RevisionMeta[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [preview, setPreview] = useState("");
-  const [diff, setDiff] = useState<ProjectDiff | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [restoring, setRestoring] = useState(false);
-  const [savingLabel, setSavingLabel] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const labelInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    fetch(`/api/projects/${props.projectId}/revisions`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`list failed (${res.status})`))))
-      .then((revs: RevisionMeta[]) => {
-        setRevisions(revs);
-        if (revs.length > 0) setSelectedId(revs[revs.length - 1].id);
-      })
-      .catch((err) => setError((err as Error).message));
-  }, [props.projectId]);
-
-  useEffect(() => {
-    if (!selectedId) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the fetch this same effect kicks off
-    setBusy(true);
-    Promise.all([
-      fetch(`/api/projects/${props.projectId}/revisions/${selectedId}/export/dbml`).then((res) =>
-        res.ok ? res.text() : Promise.reject(new Error(`preview failed (${res.status})`)),
-      ),
-      fetch(`/api/projects/${props.projectId}/revisions/${selectedId}`).then((res) =>
-        res.ok ? (res.json() as Promise<Project>) : Promise.reject(new Error(`diff fetch failed (${res.status})`)),
-      ),
-    ])
-      .then(([dbml, revisionProject]) => {
-        setPreview(dbml);
-        setDiff(diffProjects(revisionProject, props.currentProject));
-      })
-      .catch((err) => setError((err as Error).message))
-      .finally(() => setBusy(false));
-    // currentProject deliberately excluded: it's a new object on every doc
-    // change, and re-diffing on every remote edit while the panel is open
-    // would be noisy — the comparison point is "this revision vs. what's on
-    // screen when I opened the panel / picked this revision".
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, props.projectId]);
-
-  const saveLabel = async () => {
-    if (!selectedId || !labelInputRef.current) return;
-    const label = labelInputRef.current.value.trim();
-    setSavingLabel(true);
-    try {
-      const res = await fetch(`/api/projects/${props.projectId}/revisions/${selectedId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: label || null }),
-      });
-      if (res.ok) {
-        setRevisions((revs) => revs.map((r) => (r.id === selectedId ? { ...r, label: label || null } : r)));
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? `Label failed (${res.status})`);
-      }
-    } finally {
-      setSavingLabel(false);
-    }
-  };
-
-  const restore = async () => {
-    if (!selectedId) return;
-    setRestoring(true);
-    try {
-      const res = await fetch(
-        `/api/projects/${props.projectId}/revisions/${selectedId}/restore?user=${encodeURIComponent(props.user)}`,
-        { method: "POST" },
-      );
-      if (res.ok) {
-        props.onClose();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? `Restore failed (${res.status})`);
-      }
-    } finally {
-      setRestoring(false);
-    }
-  };
-
-  return (
-    <Modal title="History" onClose={props.onClose} wide>
-      <div className="history-layout">
-        <ul className="history-list">
-          {revisions.map((rev) => (
-            <li key={rev.id}>
-              <button
-                className={`history-item${rev.id === selectedId ? " history-item-active" : ""}`}
-                onClick={() => setSelectedId(rev.id)}
-              >
-                <div className="history-item-title">{rev.label ? `🏷 ${rev.label}` : rev.author}</div>
-                <div className="history-item-sub">
-                  {rev.label ? `${rev.author} · ${rev.createdAt}` : rev.createdAt}
-                </div>
-              </button>
-            </li>
-          ))}
-          {revisions.length === 0 && (
-            <li style={{ padding: 8, color: "var(--color-text-muted)", fontSize: 12 }}>No revisions yet.</li>
-          )}
-        </ul>
-        <div className="history-detail">
-          <div className="history-detail-toolbar">
-            <div style={{ display: "flex", gap: 6, flex: 1 }}>
-              <input
-                key={selectedId}
-                ref={labelInputRef}
-                className="input"
-                defaultValue={revisions.find((r) => r.id === selectedId)?.label ?? ""}
-                placeholder="Checkpoint name (e.g. v1.0)"
-                disabled={!selectedId}
-                style={{ flex: 1 }}
-              />
-              <button className="btn btn-sm" onClick={saveLabel} disabled={!selectedId || savingLabel}>
-                {savingLabel ? "Saving…" : "Label"}
-              </button>
-            </div>
-            <button className="btn btn-primary btn-sm" onClick={restore} disabled={!selectedId || restoring}>
-              {restoring ? "Restoring…" : "Restore this revision"}
-            </button>
-          </div>
-          <div className="history-diff-box">
-            <div className="history-diff-title">Changes since this revision</div>
-            {busy ? (
-              <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Loading…</div>
-            ) : (
-              diff && <DiffSummary diff={diff} />
-            )}
-          </div>
-          <textarea
-            readOnly
-            className="textarea textarea-code"
-            value={busy ? "Loading…" : preview}
-            style={{ flex: 1 }}
+      <Suspense fallback={null}>
+        {showImport && <ImportDialog projectId={project.id} user={user} onClose={() => setShowImport(false)} />}
+        {showExport && liveProject && (
+          <ExportDialog
+            projectId={project.id}
+            projectName={project.name}
+            captureCanvasImage={captureCanvasImage}
+            onClose={() => setShowExport(false)}
           />
-        </div>
-      </div>
-      {error && <div className="modal-error">{error}</div>}
-    </Modal>
-  );
-}
-
-const SEVERITY_ICON: Record<ValidationIssue["severity"], (p: IconProps) => ReactNode> = {
-  error: (p) => <AlertTriangleIcon {...p} />,
-  warning: (p) => <AlertTriangleIcon {...p} />,
-};
-
-/** Structural check (`validateProject`, computed client-side — it's pure `Project` analysis with no `@dbml/core` dependency, safe to run on every doc change). Informational only — nothing here blocks editing. */
-function ValidationPanel(props: { issues: ValidationIssue[]; onClose: () => void }) {
-  return (
-    <Modal title="Validation" onClose={props.onClose}>
-      {props.issues.length === 0 ? (
-        <div className="validation-empty">
-          <CheckCircleIcon size={16} /> No issues found.
-        </div>
-      ) : (
-        <div className="validation-list">
-          {props.issues.map((issue, i) => (
-            <div key={i} className={`validation-row validation-row-${issue.severity}`}>
-              {SEVERITY_ICON[issue.severity]({ size: 14, style: { marginTop: 2, flexShrink: 0 } })}
-              {issue.message}
-            </div>
-          ))}
-        </div>
-      )}
-    </Modal>
+        )}
+        {showHistory && liveProject && (
+          <HistoryPanel
+            projectId={project.id}
+            currentProject={liveProject}
+            user={user}
+            onClose={() => setShowHistory(false)}
+          />
+        )}
+        {showValidation && <ValidationPanel issues={validationIssues} onClose={() => setShowValidation(false)} />}
+      </Suspense>
+    </div>
   );
 }
