@@ -1445,10 +1445,17 @@ textarea {
   border-top: 1px solid var(--color-border);
   white-space: nowrap;
   transition: background 0.1s ease;
+  cursor: pointer;
+  position: relative;
 }
 
 .table-node-row:hover {
   background: var(--color-surface-hover);
+}
+
+.table-node-row-selected {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border-left: 2px solid var(--color-primary);
 }
 
 .table-node-row-icon {
@@ -1475,6 +1482,47 @@ textarea {
   font-weight: 500;
 }
 
+.table-node-row-badges {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 2px;
+}
+
+.field-kw-badge {
+  font-size: calc(9px * var(--canvas-font-scale));
+  font-weight: 700;
+  padding: 0.5px 4px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+.field-kw-badge-pk {
+  background: rgba(251, 191, 36, 0.18);
+  color: var(--color-warning);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+.field-kw-badge-unique {
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--color-primary-hover);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+}
+
+.field-kw-badge-notnull {
+  background: rgba(56, 189, 248, 0.16);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.field-kw-badge-increment {
+  background: rgba(52, 211, 153, 0.16);
+  color: var(--color-success);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
 .table-node-row-type {
   margin-left: auto;
   padding: 1px 6px;
@@ -1484,7 +1532,218 @@ textarea {
   border-radius: var(--radius-full);
   font-family: var(--font-mono);
   font-size: calc(10.5px * var(--canvas-font-scale));
-  white-space: nowrap;
+}
+
+.table-node-row-edit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.table-node-row:hover .table-node-row-edit,
+.table-node-row-selected .table-node-row-edit {
+  opacity: 1;
+}
+
+.table-node-row-edit:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.table-node-footer {
+  border-top: 1px solid var(--color-border);
+  background: rgba(0, 0, 0, 0.12);
+  padding: 3px 6px;
+}
+
+.table-node-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 3px 8px;
+  font-size: calc(11px * var(--canvas-font-scale));
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px dashed transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.table-node-add-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+  border-color: var(--color-border);
+}
+
+/* ---------- Column Properties Popover ---------- */
+
+.field-popover {
+  position: fixed;
+  z-index: 9999;
+  width: 290px;
+  padding: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.field-popover-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.btn-danger-ghost {
+  color: var(--color-danger);
+  background: none;
+  border: none;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.btn-danger-ghost:hover {
+  background: var(--color-danger-light);
+}
+
+.field-popover-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-popover-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.field-popover-input {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+}
+
+.field-popover-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.field-popover-type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.field-type-chip {
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.field-type-chip:hover {
+  border-color: var(--color-primary-border);
+  color: var(--color-text);
+}
+
+.field-type-chip-active {
+  background: var(--color-primary-light);
+  color: var(--color-primary-hover);
+  border-color: var(--color-primary-border);
+  font-weight: 600;
+}
+
+.field-popover-kw-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.kw-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.kw-toggle-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.kw-toggle-btn.active {
+  font-weight: 600;
+}
+
+.kw-toggle-pk.active {
+  background: rgba(251, 191, 36, 0.16);
+  color: var(--color-warning);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.kw-toggle-unique.active {
+  background: rgba(99, 102, 241, 0.16);
+  color: var(--color-primary-hover);
+  border-color: var(--color-primary-border);
+}
+
+.kw-toggle-notnull.active {
+  background: rgba(56, 189, 248, 0.16);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.kw-toggle-increment.active {
+  background: rgba(52, 211, 153, 0.16);
+  color: var(--color-success);
+  border-color: rgba(52, 211, 153, 0.45);
 }
 
 /* ---------- Zone node ---------- */

@@ -9,6 +9,7 @@ import {
   getZonesMap,
   type Comment,
   type DetailLevel,
+  type Field,
   type RoutingPoint,
 } from "@athanordb/shared";
 import { validateProject, type ValidationIssue } from "@athanordb/dbml-engine";
@@ -356,21 +357,8 @@ function ProjectEditor(props: {
       getMetaMap(doc).set("paletteColors", next);
     };
 
-    const selectedEdges = edges.filter((e) => e.selected);
-    const selectedRefFieldIdsByTable = new Map<string, Set<string>>();
-    if (selectedEdges.length > 0) {
-      const selectedRefIds = new Set(selectedEdges.map((e) => e.id));
-      for (const ref of liveProject.refs) {
-        if (selectedRefIds.has(ref.id)) {
-          if (!selectedRefFieldIdsByTable.has(ref.from.tableId)) selectedRefFieldIdsByTable.set(ref.from.tableId, new Set());
-          if (!selectedRefFieldIdsByTable.has(ref.to.tableId)) selectedRefFieldIdsByTable.set(ref.to.tableId, new Set());
-          selectedRefFieldIdsByTable.get(ref.from.tableId)!.add(ref.from.fieldId);
-          selectedRefFieldIdsByTable.get(ref.to.tableId)!.add(ref.to.fieldId);
-        }
-      }
-    }
-
     // Zones render first (bottom, so tables/notes drag on top of them), then
+
     // tables, then sticky notes last (top, as annotations layered over the diagram).
     const zoneNodes: ZoneNodeType[] = liveProject.zones.map((zone) => ({
       id: zone.id,
@@ -434,8 +422,41 @@ function ProjectEditor(props: {
           if (!current) return;
           tables.set(table.id, { ...current, comments: (current.comments ?? []).filter((c) => c.id !== commentId) });
         },
+        onUpdateField: (fieldId: string, updates: Partial<Field>) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          const updatedFields = current.fields.map((f) => (f.id === fieldId ? { ...f, ...updates } : f));
+          tables.set(table.id, { ...current, fields: updatedFields });
+        },
+        onAddField: (fieldData: Omit<Field, "id">) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          const newField: Field = { id: crypto.randomUUID(), ...fieldData };
+          tables.set(table.id, { ...current, fields: [...current.fields, newField] });
+        },
+        onDeleteField: (fieldId: string) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          const updatedFields = current.fields.filter((f) => f.id !== fieldId);
+          const refs = getRefsMap(doc);
+          doc.transact(() => {
+            for (const [refId, ref] of refs.entries()) {
+              if (
+                (ref.from.tableId === table.id && ref.from.fieldId === fieldId) ||
+                (ref.to.tableId === table.id && ref.to.fieldId === fieldId)
+              ) {
+                refs.delete(refId);
+              }
+            }
+            tables.set(table.id, { ...current, fields: updatedFields });
+          });
+        },
       },
     }));
+
 
     const stickyNodes: StickyNoteNodeType[] = liveProject.stickyNotes.map((note) => ({
       id: note.id,

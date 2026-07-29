@@ -1,6 +1,20 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+const isAbortedError = (err: any) => {
+  if (!err) return false;
+  const code = err.code || err.cause?.code;
+  const message = err.message || "";
+  return (
+    code === "ECONNABORTED" ||
+    code === "ECONNRESET" ||
+    code === "EPIPE" ||
+    message.includes("ECONNABORTED") ||
+    message.includes("ECONNRESET") ||
+    message.includes("EPIPE")
+  );
+};
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -11,36 +25,26 @@ export default defineConfig({
         target: "ws://localhost:3001",
         ws: true,
         configure: (proxy) => {
-          const origWs = proxy.ws;
-          proxy.ws = function (req: any, socket: any, head: any, options: any, callback: any) {
-            const wrappedCallback = (err: any, ...rest: any[]) => {
-              if (
-                err?.code === "ECONNABORTED" ||
-                err?.code === "ECONNRESET" ||
-                err?.message?.includes("ECONNABORTED") ||
-                err?.message?.includes("ECONNRESET")
-              ) {
-                return;
-              }
-              if (typeof callback === "function") {
-                callback(err, ...rest);
-              }
-            };
-            return origWs.call(this, req, socket, head, options, wrappedCallback);
-          };
+          proxy.on("proxyReqWs", (_proxyReq, _req, socket: any) => {
+            if (socket) {
+              const origEmit = socket.emit;
+              socket.emit = function (event: string | symbol, ...args: any[]) {
+                if (event === "error" && isAbortedError(args[0])) {
+                  return false;
+                }
+                return origEmit.apply(this, [event, ...args] as [string | symbol, ...any[]]);
+              };
+            }
+          });
+
+          proxy.on("error", (err) => {
+            if (isAbortedError(err)) return;
+          });
 
           const origEmit = proxy.emit;
           proxy.emit = function (event: string | symbol, ...args: unknown[]) {
-            if (event === "error") {
-              const err = args[0] as { code?: string; message?: string } | undefined;
-              if (
-                err?.code === "ECONNABORTED" ||
-                err?.code === "ECONNRESET" ||
-                err?.message?.includes("ECONNABORTED") ||
-                err?.message?.includes("ECONNRESET")
-              ) {
-                return false;
-              }
+            if (event === "error" && isAbortedError(args[0])) {
+              return false;
             }
             return origEmit.apply(this, [event, ...args] as [string | symbol, ...unknown[]]);
           };
@@ -49,3 +53,4 @@ export default defineConfig({
     },
   },
 });
+
