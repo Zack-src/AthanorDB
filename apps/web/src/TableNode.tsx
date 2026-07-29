@@ -69,6 +69,7 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
             value={nameDraft}
             onChange={(e) => setNameDraft(e.target.value)}
             onBlur={commitRename}
+            maxLength={200}
             onKeyDown={(e) => {
               if (e.key === "Enter") commitRename();
               if (e.key === "Escape") {

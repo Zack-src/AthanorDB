@@ -106,6 +106,7 @@ export function CommentThread(props: {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Add a comment…"
+                maxLength={2000}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit();
                 }}

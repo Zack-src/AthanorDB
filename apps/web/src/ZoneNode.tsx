@@ -56,6 +56,7 @@ function ZoneNodeImpl({ data, selected }: NodeProps<ZoneNodeType>) {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onBlur={commit}
+              maxLength={200}
               onKeyDown={(e) => {
                 if (e.key === "Enter") commit();
                 if (e.key === "Escape") {

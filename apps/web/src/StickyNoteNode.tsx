@@ -40,6 +40,7 @@ function StickyNoteNodeImpl({ data, selected }: NodeProps<StickyNoteNodeType>) {
           value={note.text}
           onChange={(e) => data.onTextChange(e.target.value)}
           placeholder="Note…"
+          maxLength={2000}
         />
         <div className="sticky-node-footer">
           <ColorSwatchPicker
