@@ -29,7 +29,7 @@ import { Login } from "./Login.js";
 import { AcceptInvite } from "./AcceptInvite.js";
 import { AdminConsole } from "./AdminConsole.js";
 import { ChangePasswordModal } from "./ChangePasswordModal.js";
-import { FONT_SCALE_KEY, FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadFontScale } from "./localPrefs.js";
+import { FONT_SCALE_KEY, FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadFontScale, loadHighlightLinks, saveHighlightLinks } from "./localPrefs.js";
 import type { CanvasExportHandle, CanvasNode, ProjectStatus, ProjectSummary, Session } from "./types.js";
 import {
   ChevronLeftIcon,
@@ -287,6 +287,12 @@ function ProjectEditor(props: {
   const [showHistory, setShowHistory] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   const [fontScale, setFontScale] = useState(loadFontScale);
+  const [highlightLinks, setHighlightLinks] = useState(loadHighlightLinks);
+
+  const handleHighlightLinksChange = (val: boolean) => {
+    setHighlightLinks(val);
+    saveHighlightLinks(val);
+  };
 
   useEffect(() => {
     localStorage.setItem(FONT_SCALE_KEY, String(fontScale));
@@ -387,6 +393,7 @@ function ProjectEditor(props: {
       data: {
         table,
         refFieldIds: refFieldIdsByTable.get(table.id) ?? new Set(),
+        highlightLinks,
         currentUser: user,
         palette,
         onPaletteChange,
@@ -445,7 +452,7 @@ function ProjectEditor(props: {
     }));
 
     return [...zoneNodes, ...tableNodes, ...stickyNodes];
-  }, [liveProject, doc, refFieldIdsByTable, user]);
+  }, [liveProject, doc, refFieldIdsByTable, user, highlightLinks]);
 
   // React Flow needs local, controlled node state to show live drag position —
   // `builtNodes` (source of truth) only updates once the drag commits to the
@@ -615,6 +622,7 @@ function ProjectEditor(props: {
         data: {
           cardinality: ref.cardinality,
           routingPoints: ref.routingPoints,
+          highlightLinks,
           onRoutingPointsChange: (routingPoints: RoutingPoint[] | undefined) => {
             if (!doc) return;
             const refs = getRefsMap(doc);
@@ -625,7 +633,7 @@ function ProjectEditor(props: {
         markerEnd: { type: MarkerType.ArrowClosed, color: CARDINALITY_STYLE[ref.cardinality].stroke },
       };
     });
-  }, [liveProject, doc, nodes]);
+  }, [liveProject, doc, nodes, highlightLinks]);
 
   const addTable = (position?: { x: number; y: number }) => {
     if (!doc) return;
@@ -793,6 +801,8 @@ function ProjectEditor(props: {
             onAddZone={addZone}
             onAddNote={addStickyNote}
             fontScale={fontScale}
+            highlightLinks={highlightLinks}
+            onHighlightLinksChange={handleHighlightLinksChange}
             projectId={project.id}
             viewportUserId={props.userId}
             exportRef={canvasExportRef}
