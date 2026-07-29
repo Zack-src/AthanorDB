@@ -49,12 +49,12 @@ function CodeMirrorEditor(props: { value: string; onChange: (val: string) => voi
         oneDark,
         athanorEditorTheme,
         dbmlLanguage,
-        autocompletion({ override: [dbmlCompletion] }),
+        autocompletion({ override: [dbmlCompletion], selectOnOpen: true }),
         keymap.of([
+          ...completionKeymap,
           ...defaultKeymap,
           ...historyKeymap,
           ...closeBracketsKeymap,
-          ...completionKeymap,
         ]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
@@ -91,8 +91,8 @@ function CodeMirrorEditor(props: { value: string; onChange: (val: string) => voi
     <div
       ref={containerRef}
       style={{ height: "100%", width: "100%", overflow: "hidden" }}
-      onKeyDownCapture={(e) => {
-        // Stop canvas shortcuts from intercepting arrow keys or editing keys
+      onKeyDown={(e) => {
+        // Stop canvas shortcuts from intercepting editor keys after CodeMirror processes them
         e.stopPropagation();
       }}
     />
