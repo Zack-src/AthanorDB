@@ -316,6 +316,55 @@ textarea {
   flex: 1;
 }
 
+.project-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.project-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  margin-bottom: -1px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.project-tab + .project-tab {
+  margin-left: 14px;
+}
+
+.project-tab:hover {
+  color: var(--color-text);
+}
+
+.project-tab-active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.project-tab-count {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.project-tab-active .project-tab-count {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
 .project-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -344,6 +393,22 @@ textarea {
   transform: translateY(-1px);
 }
 
+.project-card-static {
+  cursor: default;
+}
+
+.project-card-static:hover {
+  box-shadow: var(--shadow-xs);
+  border-color: var(--color-border);
+  transform: none;
+}
+
+.project-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .project-card-icon {
   display: flex;
   align-items: center;
@@ -356,6 +421,23 @@ textarea {
   color: var(--color-primary);
 }
 
+.project-card-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.project-card:hover .project-card-actions,
+.project-card:focus-within .project-card-actions {
+  opacity: 1;
+}
+
+.project-card-action {
+  width: 24px;
+  height: 24px;
+}
+
 .project-card-name {
   font-size: 14px;
   font-weight: 600;
@@ -364,6 +446,14 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.project-card-name-input {
+  width: 100%;
+  margin-bottom: 2px;
+  padding: 2px 6px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .project-card-date {
@@ -423,6 +513,140 @@ textarea {
 
 .badge-count-danger {
   background: var(--color-danger);
+}
+
+/* ---------- Auth pages (Login / AcceptInvite) ---------- */
+
+.auth-page {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  padding: 28px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.auth-title {
+  margin: 0 0 4px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.auth-sub {
+  margin: 0 0 20px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+/* ---------- Admin console ---------- */
+
+.admin-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.admin-list-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.admin-list-main-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.badge-admin {
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-viewonly {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-status {
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-status-pending {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.badge-status-accepted {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.badge-status-expired {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
 }
 
 .font-scale-group {
@@ -1055,7 +1279,7 @@ textarea {
 .table-node {
   min-width: 190px;
   background: var(--color-surface);
-  border-radius: var(--radius-md);
+  border-radius: 4px;
   overflow: hidden;
   font-size: calc(12.5px * var(--canvas-font-scale));
   box-shadow: var(--shadow-sm);
@@ -1372,15 +1596,24 @@ textarea {
   overflow: hidden;
 }
 
-.react-flow__controls-button {
+/* Qualified with the `.react-flow__controls` ancestor (rather than just
+   `.react-flow__controls-button`) to out-rank @xyflow/react's own same-
+   selector rule in `dist/style.css` — that stylesheet is imported after this
+   one (App.tsx, after main.tsx's index.css), so at equal specificity it would
+   otherwise win and silently put the library's light-mode background back.
+   `color` (not `fill`) is what actually reaches the icon: the library's own
+   `.react-flow__controls-button svg { fill: currentColor }` rule resolves
+   `currentColor` from this element's `color`, not its `fill`. */
+.react-flow__controls .react-flow__controls-button {
   border: none;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
-  fill: var(--color-text-secondary);
+  color: var(--color-text-secondary);
 }
 
-.react-flow__controls-button:hover {
+.react-flow__controls .react-flow__controls-button:hover {
   background: var(--color-surface-hover);
+  color: var(--color-text);
 }
 
 .react-flow__minimap {
