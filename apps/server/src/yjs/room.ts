@@ -33,7 +33,12 @@ export class Room {
     this.awareness = new awarenessProtocol.Awareness(this.doc);
 
     this.doc.on("update", (update: Uint8Array, origin: unknown) => {
-      const author = this.conns.get(origin as WebSocket)?.author ?? "system";
+      // Two kinds of origin reach here: a WebSocket (a live, connected edit —
+      // resolve through `conns`) or a plain string (a REST-triggered write
+      // like import/restore, which has no connection — the route already
+      // resolved the acting username and passed it straight through as the
+      // transaction's origin).
+      const author = typeof origin === "string" ? origin : (this.conns.get(origin as WebSocket)?.author ?? "system");
       appendRevision(this.projectId, author, update);
       this.scheduleSnapshot();
 

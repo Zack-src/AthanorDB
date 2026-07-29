@@ -3,8 +3,7 @@ import { db } from "../db.js";
 
 export function loadSnapshot(projectId: string): Uint8Array | undefined {
   const row = db.prepare("SELECT yjs_state FROM snapshots WHERE project_id = ?").get(projectId) as
-    | { yjs_state: Buffer }
-    | undefined;
+    { yjs_state: Buffer } | undefined;
   return row ? new Uint8Array(row.yjs_state) : undefined;
 }
 
@@ -22,8 +21,43 @@ export function appendRevision(projectId: string, author: string, update: Uint8A
   ).run(crypto.randomUUID(), projectId, author, Buffer.from(update));
 }
 
+/** Names a revision as a checkpoint (e.g. "v1.0"), or clears the label with `null`. Returns false if no such revision exists for the project. */
+export function setRevisionLabel(projectId: string, revisionId: string, label: string | null): boolean {
+  const result = db
+    .prepare(`UPDATE revisions SET label = ? WHERE id = ? AND project_id = ?`)
+    .run(label, revisionId, projectId);
+  return result.changes > 0;
+}
+
 export function listRevisions(projectId: string) {
+  // `created_at` only has 1s resolution (SQLite `datetime('now')`), so a burst
+  // of edits within the same second would tie under that ordering. `rowid` is
+  // SQLite's implicit, monotonically-increasing insertion order and costs
+  // nothing extra to expose.
   return db
-    .prepare(`SELECT id, author, label, created_at FROM revisions WHERE project_id = ? ORDER BY created_at ASC`)
+    .prepare(`SELECT id, author, label, created_at FROM revisions WHERE project_id = ? ORDER BY rowid ASC`)
     .all(projectId);
+}
+
+/**
+ * All Yjs update bytes for a project, from the beginning of its history up to
+ * and including `revisionId`, in application order. Returns `null` if no
+ * revision with that id exists for the project.
+ */
+export function getRevisionUpdatesUpTo(projectId: string, revisionId: string): Uint8Array[] | null {
+  const rows = db
+    .prepare(`SELECT id, yjs_update FROM revisions WHERE project_id = ? ORDER BY rowid ASC`)
+    .all(projectId) as { id: string; yjs_update: Buffer }[];
+  const idx = rows.findIndex((r) => r.id === revisionId);
+  if (idx === -1) return null;
+  return rows.slice(0, idx + 1).map((r) => new Uint8Array(r.yjs_update));
+}
+
+/** Replays a project's revision log up to `revisionId` into a fresh, disconnected Y.Doc. */
+export function reconstructDocAtRevision(projectId: string, revisionId: string): Y.Doc | null {
+  const updates = getRevisionUpdatesUpTo(projectId, revisionId);
+  if (!updates) return null;
+  const doc = new Y.Doc();
+  updates.forEach((update) => Y.applyUpdate(doc, update));
+  return doc;
 }

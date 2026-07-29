@@ -1,4 +1,8 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
+import fastifyStatic from "@fastify/static";
 import websocket from "@fastify/websocket";
 import type { WebSocket } from "ws";
 import { registerProjectRoutes } from "./routes/projects.js";
@@ -9,6 +13,16 @@ await app.register(websocket);
 
 app.get("/api/health", async () => ({ status: "ok" }));
 registerProjectRoutes(app);
+
+// Single-process production deployment: serve the built web app once it
+// exists. In dev, apps/web runs its own Vite server and proxies /api and /ws
+// here instead, so this is a no-op until `npm run build -w apps/web` runs.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const webDist = path.resolve(__dirname, "../../web/dist");
+if (existsSync(webDist)) {
+  await app.register(fastifyStatic, { root: webDist });
+  app.log.info(`serving built web app from ${webDist}`);
+}
 
 app.register(async (instance) => {
   instance.get("/ws/:projectId", { websocket: true }, (socket: WebSocket, req) => {
