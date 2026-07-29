@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type MutableRefObject } from "react";
-import { ReactFlow, useReactFlow, Background, Controls, MiniMap, type NodeChange } from "@xyflow/react";
+import { ReactFlow, useReactFlow, Background, Controls, ControlButton, MiniMap, type NodeChange } from "@xyflow/react";
 import type { Awareness } from "y-protocols/awareness.js";
 import { TableNode } from "./TableNode.js";
 import { RefEdge, type RefEdgeType } from "./RefEdge.js";
 import { ZoneNode } from "./ZoneNode.js";
 import { StickyNoteNode } from "./StickyNoteNode.js";
 import { CursorNode, type CursorNodeType } from "./CursorNode.js";
-import { FrameIcon, NoteIcon, TableIcon } from "./Icons.js";
+import { FrameIcon, LinkIcon, NoteIcon, TableIcon } from "./Icons.js";
 import { loadViewport, viewportKey } from "./localPrefs.js";
 import type { AllNodes, CanvasExportHandle, CanvasNode } from "./types.js";
 
@@ -64,6 +64,8 @@ export function CanvasArea(props: {
   onAddZone: (position: { x: number; y: number }) => void;
   onAddNote: (position: { x: number; y: number }) => void;
   fontScale: number;
+  highlightLinks: boolean;
+  onHighlightLinksChange: (highlight: boolean) => void;
   projectId: string;
   /** Session's stable user id — only used to namespace the saved-viewport localStorage key, not an identity/authorship field. */
   viewportUserId: string;
@@ -168,7 +170,20 @@ export function CanvasArea(props: {
         defaultViewport={initialViewport ?? undefined}
       >
         <Background color="#33353c" gap={20} />
-        <Controls showZoom={false} />
+        <Controls showZoom={false}>
+          <ControlButton
+            onClick={() => props.onHighlightLinksChange(!props.highlightLinks)}
+            title={props.highlightLinks ? "Masquer la mise en évidence des liens et cardinalités" : "Mettre en évidence les liens et cardinalités"}
+            aria-label="Toggle link highlight"
+            style={{
+              color: props.highlightLinks ? "#818cf8" : undefined,
+              borderColor: props.highlightLinks ? "#6366f1" : undefined,
+              background: props.highlightLinks ? "rgba(99, 102, 241, 0.25)" : undefined,
+            }}
+          >
+            <LinkIcon size={14} />
+          </ControlButton>
+        </Controls>
         <MiniMap pannable zoomable bgColor="#1f2024" nodeColor="#4b4d8a" maskColor="rgba(23,24,27,0.75)" />
       </ReactFlow>
       {menu && (
