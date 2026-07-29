@@ -24,7 +24,7 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done
 - [x] Visual metadata types: position `{x,y}`, size, color, collapsed/detail-level, edge routing points/style
 - [x] Define "Detail Level" enum: `Compact` (name only) / `Standard` (name + PK/FK) / `Full` (all columns + types + constraints)
 - [x] Define protocol messages for client<->server sync (join project, patch, cursor/presence, history request)
-- [ ] Versioned document envelope (project id, revision, timestamp, author) — `RevisionMeta` stub exists, not wired to real revisions yet
+- [x] Versioned document envelope (project id, revision, timestamp, author) — the `RevisionMeta` "stub" was actually a leftover from an abandoned WS-message-envelope design (`ClientMessage`/`ServerMessage` unions with `history:list`/`history:restore`) that got superseded by the REST-based history routes early on; grepping the whole repo found zero references to either union type anywhere outside `protocol.ts` itself. Deleted both as dead code and rewired `RevisionMeta` to describe what's actually shipped: `apps/server`'s `listRevisions` now returns `RevisionMeta[]` (was untyped, SQL columns passed straight through) with the SQL aliased to camelCase (`created_at AS createdAt`), and `apps/web`'s `HistoryPanel` imports the shared type instead of a redundant local copy that had drifted (`created_at` vs `createdAt`, plus a `projectId` field the real payload never carried). Verified end-to-end: `GET /revisions` now actually returns `{id, author, label, createdAt}` on the wire, matching the type exactly.
 
 ## Phase 2 — DBML engine (`packages/dbml-engine`)
 
