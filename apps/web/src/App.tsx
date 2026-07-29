@@ -928,6 +928,19 @@ function ImportDialog(props: { projectId: string; user: string; onClose: () => v
   const [format, setFormat] = useState<ExportFormat>("dbml");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (file: File) => {
+    setSource(await file.text());
+    setFileName(file.name);
+    setError(null);
+    if (/\.sql$/i.test(file.name)) {
+      if (format === "dbml") setFormat("postgres");
+    } else {
+      setFormat("dbml");
+    }
+  };
 
   const submit = async () => {
     if (!source.trim()) return;
@@ -960,6 +973,21 @@ function ImportDialog(props: { projectId: string; user: string; onClose: () => v
       </p>
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
         <FormatSelect value={format} onChange={setFormat} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".dbml,.sql,.txt"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFile(file);
+            e.target.value = "";
+          }}
+        />
+        <button className="btn" onClick={() => fileInputRef.current?.click()}>
+          <UploadIcon size={13} /> {fileName ?? "Choose file…"}
+        </button>
+        <span style={{ flex: 1 }} />
         <button className="btn btn-primary" onClick={submit} disabled={busy || !source.trim()}>
           {busy ? "Importing…" : "Import"}
         </button>
@@ -967,8 +995,11 @@ function ImportDialog(props: { projectId: string; user: string; onClose: () => v
       <textarea
         className="textarea textarea-code"
         value={source}
-        onChange={(e) => setSource(e.target.value)}
-        placeholder={format === "dbml" ? "Paste DBML…" : "Paste SQL DDL…"}
+        onChange={(e) => {
+          setSource(e.target.value);
+          setFileName(null);
+        }}
+        placeholder={format === "dbml" ? "Paste DBML, or choose a .dbml/.sql file…" : "Paste SQL DDL, or choose a .dbml/.sql file…"}
         style={{ width: "100%", height: 320 }}
       />
       {error && <div className="modal-error">{error}</div>}
