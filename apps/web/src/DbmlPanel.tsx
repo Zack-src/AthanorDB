@@ -6,6 +6,7 @@ import { bracketMatching } from "@codemirror/language";
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
 import { oneDark } from "@codemirror/theme-one-dark";
 import type { Project } from "@athanordb/shared";
+import { projectToDbml } from "@athanordb/dbml-engine";
 import { ChevronLeftIcon, CodeIcon } from "./Icons.js";
 import { dbmlLanguage, dbmlCompletion, athanorEditorTheme, customTabBinding } from "./codemirrorDbml.js";
 
@@ -172,20 +173,29 @@ function DbmlPanel(props: { project: Project; projectId: string; onClose: () => 
   }, [projectId]);
 
   // Refetch only on remote changes when user is not dirty
+  // Sync live project changes (e.g. node/ref deletions or modifications) into DBML text
   useEffect(() => {
     if (dirtyRef.current) return;
-    fetch(`/api/projects/${projectId}/export/dbml`)
-      .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`export failed (${res.status})`))))
-      .then((dbml) => {
-        if (dirtyRef.current) return;
-        if (text === dbml || lastAppliedTextRef.current === dbml) return;
+    try {
+      const dbml = projectToDbml(project);
+      if (text !== dbml && lastAppliedTextRef.current !== dbml) {
         setText(dbml);
         lastAppliedTextRef.current = dbml;
         setStatus("synced");
-      })
-      .catch((err) => setError((err as Error).message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, projectId]);
+      }
+    } catch {
+      fetch(`/api/projects/${projectId}/export/dbml`)
+        .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`export failed (${res.status})`))))
+        .then((dbml) => {
+          if (dirtyRef.current) return;
+          if (text === dbml || lastAppliedTextRef.current === dbml) return;
+          setText(dbml);
+          lastAppliedTextRef.current = dbml;
+          setStatus("synced");
+        })
+        .catch((err) => setError((err as Error).message));
+    }
+  }, [project, projectId, text]);
 
   const applyNow = useCallback(
     (source: string) => {
