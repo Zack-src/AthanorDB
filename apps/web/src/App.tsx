@@ -356,6 +356,20 @@ function ProjectEditor(props: {
       getMetaMap(doc).set("paletteColors", next);
     };
 
+    const selectedEdges = edges.filter((e) => e.selected);
+    const selectedRefFieldIdsByTable = new Map<string, Set<string>>();
+    if (selectedEdges.length > 0) {
+      const selectedRefIds = new Set(selectedEdges.map((e) => e.id));
+      for (const ref of liveProject.refs) {
+        if (selectedRefIds.has(ref.id)) {
+          if (!selectedRefFieldIdsByTable.has(ref.from.tableId)) selectedRefFieldIdsByTable.set(ref.from.tableId, new Set());
+          if (!selectedRefFieldIdsByTable.has(ref.to.tableId)) selectedRefFieldIdsByTable.set(ref.to.tableId, new Set());
+          selectedRefFieldIdsByTable.get(ref.from.tableId)!.add(ref.from.fieldId);
+          selectedRefFieldIdsByTable.get(ref.to.tableId)!.add(ref.to.fieldId);
+        }
+      }
+    }
+
     // Zones render first (bottom, so tables/notes drag on top of them), then
     // tables, then sticky notes last (top, as annotations layered over the diagram).
     const zoneNodes: ZoneNodeType[] = liveProject.zones.map((zone) => ({
