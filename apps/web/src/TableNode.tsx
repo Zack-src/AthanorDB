@@ -1,5 +1,5 @@
-import { memo, useState } from "react";
-import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
+import { memo, useMemo, useState } from "react";
+import { Handle, Position, useEdges, type Node, type NodeProps } from "@xyflow/react";
 import type { Field, Table } from "@athanordb/shared";
 import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
 import { CommentThread } from "./CommentThread.js";
@@ -36,6 +36,22 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(table.name);
   const tableComments = table.comments?.filter((c) => !c.fieldId) ?? [];
+
+  const edges = useEdges();
+  const selectedEdgeFieldIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const edge of edges) {
+      if (edge.selected && (edge.source === table.id || edge.target === table.id)) {
+        if (edge.source === table.id && edge.sourceHandle) {
+          set.add(edge.sourceHandle.replace(/-(left|right)-(source|target)$/, ""));
+        }
+        if (edge.target === table.id && edge.targetHandle) {
+          set.add(edge.targetHandle.replace(/-(left|right)-(source|target)$/, ""));
+        }
+      }
+    }
+    return set;
+  }, [edges, table.id]);
 
   const rows =
     table.detailLevel === "compact"
@@ -105,7 +121,10 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
       </div>
       {rows.map((field) => {
         const fieldComments = table.comments?.filter((c) => c.fieldId === field.id) ?? [];
-        const isLinked = Boolean(data.highlightLinks && refFieldIds.has(field.id));
+        const isLinked = Boolean(
+          (data.highlightLinks && refFieldIds.has(field.id)) ||
+          selectedEdgeFieldIds.has(field.id)
+        );
         return (
           <div key={field.id} className={`table-node-row${isLinked ? " table-node-row-linked" : ""}`}>
             <Handle type="target" position={Position.Left} id={`${field.id}-left-target`} className="table-row-handle" />
