@@ -21,6 +21,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import {
+  getMetaMap,
   getRefsMap,
   getStickyNotesMap,
   getTablesMap,
@@ -42,6 +43,7 @@ import { useProjectDoc } from "./useProjectDoc.js";
 import { useAwarenessStates } from "./useAwarenessStates.js";
 import { computeAutoLayout } from "./autoLayout.js";
 import { hashColor } from "./awarenessColor.js";
+import { DEFAULT_PALETTE } from "./ColorSwatchPicker.js";
 import { TableNode, type TableNodeType } from "./TableNode.js";
 import { RefEdge, CARDINALITY_STYLE, type RefEdgeType } from "./RefEdge.js";
 import { ZoneNode, type ZoneNodeType } from "./ZoneNode.js";
@@ -279,6 +281,11 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
   const builtNodes: CanvasNode[] = useMemo(() => {
     if (!liveProject || !doc) return [];
 
+    const palette = liveProject.paletteColors ?? DEFAULT_PALETTE;
+    const onPaletteChange = (next: string[]) => {
+      getMetaMap(doc).set("paletteColors", next);
+    };
+
     // Zones render first (bottom, so tables/notes drag on top of them), then
     // tables, then sticky notes last (top, as annotations layered over the diagram).
     const zoneNodes: ZoneNodeType[] = liveProject.zones.map((zone) => ({
@@ -289,6 +296,8 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
       type: "zone",
       data: {
         zone,
+        palette,
+        onPaletteChange,
         onLabelChange: (label: string) => {
           const zones = getZonesMap(doc);
           const current = zones.get(zone.id);
@@ -315,6 +324,8 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
         table,
         refFieldIds: refFieldIdsByTable.get(table.id) ?? new Set(),
         currentUser: user,
+        palette,
+        onPaletteChange,
         onRename: (name: string) => {
           const tables = getTablesMap(doc);
           const current = tables.get(table.id);
@@ -349,6 +360,8 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
       type: "sticky",
       data: {
         note,
+        palette,
+        onPaletteChange,
         onTextChange: (text: string) => {
           const stickyNotes = getStickyNotesMap(doc);
           const current = stickyNotes.get(note.id);

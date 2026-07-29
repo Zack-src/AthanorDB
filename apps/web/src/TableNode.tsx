@@ -10,6 +10,8 @@ export interface TableNodeData {
   /** Field ids that are either endpoint of some ref touching this table — always shown outside compact, even if not PK. */
   refFieldIds: Set<string>;
   currentUser: string;
+  palette: string[];
+  onPaletteChange: (palette: string[]) => void;
   onRename: (name: string) => void;
   onStyleChange: (color: string | undefined, borderColor: string | undefined) => void;
   onAddComment: (text: string, fieldId?: string) => void;
@@ -91,6 +93,8 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
         <ColorSwatchPicker
           value={table.style?.color ?? DEFAULT_HEADER_COLOR}
           onChange={(color) => data.onStyleChange(color, table.style?.borderColor)}
+          palette={data.palette}
+          onPaletteChange={data.onPaletteChange}
           triggerClassName="table-node-swatch"
           title="Header color"
         />

@@ -5,6 +5,8 @@ import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
 
 export interface StickyNoteNodeData {
   note: StickyNote;
+  palette: string[];
+  onPaletteChange: (palette: string[]) => void;
   onTextChange: (text: string) => void;
   onColorChange: (color: string) => void;
   onResize: (position: { x: number; y: number }, size: { width: number; height: number }) => void;
@@ -40,7 +42,14 @@ function StickyNoteNodeImpl({ data, selected }: NodeProps<StickyNoteNodeType>) {
           placeholder="Note…"
         />
         <div className="sticky-node-footer">
-          <ColorSwatchPicker value={color} onChange={data.onColorChange} triggerClassName="sticky-node-swatch" title="Note color" />
+          <ColorSwatchPicker
+            value={color}
+            onChange={data.onColorChange}
+            palette={data.palette}
+            onPaletteChange={data.onPaletteChange}
+            triggerClassName="sticky-node-swatch"
+            title="Note color"
+          />
         </div>
       </div>
     </>

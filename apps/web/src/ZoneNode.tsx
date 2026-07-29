@@ -5,6 +5,8 @@ import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
 
 export interface ZoneNodeData {
   zone: Zone;
+  palette: string[];
+  onPaletteChange: (palette: string[]) => void;
   onLabelChange: (label: string) => void;
   onColorChange: (color: string) => void;
   onResize: (position: { x: number; y: number }, size: { width: number; height: number }) => void;
@@ -67,7 +69,14 @@ function ZoneNodeImpl({ data, selected }: NodeProps<ZoneNodeType>) {
               {zone.label}
             </span>
           )}
-          <ColorSwatchPicker value={color} onChange={data.onColorChange} triggerClassName="zone-node-swatch" title="Zone color" />
+          <ColorSwatchPicker
+            value={color}
+            onChange={data.onColorChange}
+            palette={data.palette}
+            onPaletteChange={data.onPaletteChange}
+            triggerClassName="zone-node-swatch"
+            title="Zone color"
+          />
         </div>
       </div>
     </>

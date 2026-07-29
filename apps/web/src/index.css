@@ -515,6 +515,20 @@ textarea {
   outline-offset: 1px;
 }
 
+.color-swatch-cell-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border-style: dashed;
+}
+
+.color-swatch-cell-add:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
 .color-popover-hex-input {
   width: 100%;
   font-family: var(--font-mono);
