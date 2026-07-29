@@ -25,19 +25,26 @@ import { type TableNodeType } from "./TableNode.js";
 import { PresenceList } from "./PresenceList.js";
 import { CanvasArea } from "./CanvasArea.js";
 import { ProjectList } from "./ProjectList.js";
-import { FONT_SCALE_KEY, FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadFontScale, loadUser, saveUser } from "./localPrefs.js";
-import type { CanvasExportHandle, CanvasNode, ProjectSummary } from "./types.js";
+import { Login } from "./Login.js";
+import { AcceptInvite } from "./AcceptInvite.js";
+import { AdminConsole } from "./AdminConsole.js";
+import { ChangePasswordModal } from "./ChangePasswordModal.js";
+import { FONT_SCALE_KEY, FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadFontScale } from "./localPrefs.js";
+import type { CanvasExportHandle, CanvasNode, ProjectStatus, ProjectSummary, Session } from "./types.js";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
   DownloadIcon,
+  KeyIcon,
   LayoutGridIcon,
+  LogOutIcon,
   LogoMarkIcon,
   RedoIcon,
   ShieldCheckIcon,
   UndoIcon,
   UploadIcon,
+  UsersIcon,
 } from "./Icons.js";
 
 // Each of these is only needed once a specific panel/dialog is actually
@@ -49,8 +56,45 @@ const ExportDialog = lazy(() => import("./ExportDialog.js"));
 const HistoryPanel = lazy(() => import("./HistoryPanel.js"));
 const ValidationPanel = lazy(() => import("./ValidationPanel.js"));
 
+/** The display-name input shared by the project-list header and the in-project toolbar — local draft, committed via PATCH /api/users/me on blur/Enter rather than firing a network call per keystroke. */
+function DisplayNameField(props: { value: string; onCommit: (name: string) => void }) {
+  const [draft, setDraft] = useState(props.value);
+  // Adjust state during render (React's documented pattern for "reset state
+  // when a prop changes") rather than in an effect — same idiom already used
+  // for `builtNodes`/`prevBuiltNodes` below — avoids an extra render pass.
+  const [prevValue, setPrevValue] = useState(props.value);
+  if (props.value !== prevValue) {
+    setPrevValue(props.value);
+    setDraft(props.value);
+  }
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== props.value) props.onCommit(trimmed);
+    else setDraft(props.value);
+  };
+  return (
+    <label className="user-field">
+      <input
+        className="input"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+        size={10}
+        title="Your display name"
+      />
+    </label>
+  );
+}
+
 export function App() {
-  const [user, setUser] = useState(loadUser);
+  // A freshly-loaded (not client-navigated) `/invite/:token` link is the one
+  // path this app treats as a URL rather than in-memory state — read once at
+  // mount, matching the app's existing "no router" idiom everywhere else.
+  const [inviteToken] = useState(() => location.pathname.match(/^\/invite\/([^/]+)$/)?.[1] ?? null);
+  const [session, setSession] = useState<Session | null | "loading">("loading");
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [serverStatus, setServerStatus] = useState<"checking" | "ok" | "down">("checking");
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [openProject, setOpenProject] = useState<ProjectSummary | null>(null);
@@ -67,12 +111,32 @@ export function App() {
     fetch("/api/health")
       .then((r) => (r.ok ? setServerStatus("ok") : setServerStatus("down")))
       .catch(() => setServerStatus("down"));
-    refreshProjects();
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? (r.json() as Promise<Session>) : null))
+      .then(setSession)
+      .catch(() => setSession(null));
   }, []);
 
   useEffect(() => {
-    saveUser(user);
-  }, [user]);
+    if (session && session !== "loading") refreshProjects();
+  }, [session]);
+
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setSession(null);
+    setOpenProject(null);
+    setAdminOpen(false);
+    setProjects([]);
+  };
+
+  const updateDisplayName = async (name: string) => {
+    const res = await fetch("/api/users/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: name }),
+    });
+    if (res.ok) setSession(await res.json());
+  };
 
   const createProject = async () => {
     const name = newName.trim();
@@ -88,16 +152,75 @@ export function App() {
     }
   };
 
+  const renameProject = async (p: ProjectSummary, name: string) => {
+    const res = await fetch(`/api/projects/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) refreshProjects();
+  };
+
+  const setProjectStatus = async (p: ProjectSummary, status: ProjectStatus) => {
+    const res = await fetch(`/api/projects/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (res.ok) refreshProjects();
+  };
+
+  const deleteProjectForever = async (p: ProjectSummary): Promise<string | null> => {
+    const res = await fetch(`/api/projects/${p.id}`, { method: "DELETE" });
+    if (res.ok) {
+      refreshProjects();
+      return null;
+    }
+    const data = await res.json().catch(() => ({}));
+    return data.error ?? `Delete failed (${res.status})`;
+  };
+
   const statusDotClass =
     serverStatus === "ok" ? "status-dot-ok" : serverStatus === "down" ? "status-dot-down" : "status-dot-checking";
+
+  if (inviteToken) {
+    return (
+      <div className="app-shell">
+        <AcceptInvite
+          token={inviteToken}
+          onLoggedIn={(s) => {
+            setSession(s);
+            window.history.replaceState(null, "", "/");
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (session === "loading") {
+    return <div className="app-shell" />;
+  }
+
+  if (!session) {
+    return (
+      <div className="app-shell">
+        <Login onLoggedIn={setSession} />
+      </div>
+    );
+  }
+
+  if (adminOpen) {
+    return <AdminConsole onClose={() => setAdminOpen(false)} />;
+  }
 
   if (openProject) {
     return (
       <div className="app-shell">
         <ProjectEditor
           project={openProject}
-          user={user}
-          onUserChange={setUser}
+          user={session.displayName}
+          userId={session.id}
+          onDisplayNameChange={updateDisplayName}
           onBack={() => setOpenProject(null)}
         />
       </div>
@@ -118,11 +241,20 @@ export function App() {
           {serverStatus === "ok" ? "connected" : serverStatus === "down" ? "server unreachable" : "connecting…"}
         </span>
         <span className="toolbar-spacer" />
-        <label className="user-field">
-          User
-          <input className="input" value={user} onChange={(e) => setUser(e.target.value)} size={12} />
-        </label>
+        {session.isAdmin && (
+          <button className="btn btn-sm" onClick={() => setAdminOpen(true)} title="Admin console">
+            <UsersIcon size={13} /> Admin
+          </button>
+        )}
+        <DisplayNameField value={session.displayName} onCommit={updateDisplayName} />
+        <button className="btn btn-icon btn-ghost" onClick={() => setShowChangePassword(true)} title="Change password">
+          <KeyIcon size={14} />
+        </button>
+        <button className="btn btn-icon btn-ghost" onClick={logout} title="Log out">
+          <LogOutIcon size={15} />
+        </button>
       </header>
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
       <div style={{ flex: 1, minHeight: 0 }}>
         <ProjectList
           projects={projects}
@@ -130,13 +262,22 @@ export function App() {
           onNewNameChange={setNewName}
           onCreate={createProject}
           onOpen={setOpenProject}
+          onRename={renameProject}
+          onSetStatus={setProjectStatus}
+          onDeleteForever={deleteProjectForever}
         />
       </div>
     </div>
   );
 }
 
-function ProjectEditor(props: { project: ProjectSummary; user: string; onUserChange: (v: string) => void; onBack: () => void }) {
+function ProjectEditor(props: {
+  project: ProjectSummary;
+  user: string;
+  userId: string;
+  onDisplayNameChange: (name: string) => void;
+  onBack: () => void;
+}) {
   const { project, user } = props;
   const { project: liveProject, doc, undoManager, awareness } = useProjectDoc(project.id, project.name, user);
   const remoteAwareness = useAwarenessStates(awareness);
@@ -524,6 +665,7 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
           <LogoMarkIcon size={13} style={{ color: "white" }} />
         </span>
         <span className="toolbar-project-name">{project.name}</span>
+        {project.permission === "view" && <span className="badge-viewonly">View only</span>}
         <span className="toolbar-divider" />
         <div className="toolbar-group">
           <button className="btn btn-icon" onClick={() => undoManager?.undo()} title="Undo (Ctrl+Z)">
@@ -590,21 +732,13 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
         </div>
         <span className="toolbar-divider" />
         <PresenceList localName={user} localColor={hashColor(user)} remote={remoteAwareness} />
-        <label className="user-field">
-          <input
-            className="input"
-            value={user}
-            onChange={(e) => props.onUserChange(e.target.value)}
-            size={10}
-            title="Your display name"
-          />
-        </label>
+        <DisplayNameField value={user} onCommit={props.onDisplayNameChange} />
         {!liveProject && <span className="status-pill">connecting…</span>}
       </header>
       <div className="canvas-container">
         {dbmlOpen && liveProject ? (
           <Suspense fallback={<div className="side-panel" style={{ width: 440 }} />}>
-            <DbmlPanel project={liveProject} projectId={project.id} user={user} onClose={() => setDbmlOpen(false)} />
+            <DbmlPanel project={liveProject} projectId={project.id} onClose={() => setDbmlOpen(false)} />
           </Suspense>
         ) : (
           <button className="panel-expand-tab" onClick={() => setDbmlOpen(true)} title="Show DBML editor">
@@ -623,13 +757,13 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
             onAddNote={addStickyNote}
             fontScale={fontScale}
             projectId={project.id}
-            user={user}
+            viewportUserId={props.userId}
             exportRef={canvasExportRef}
           />
         </ReactFlowProvider>
       </div>
       <Suspense fallback={null}>
-        {showImport && <ImportDialog projectId={project.id} user={user} onClose={() => setShowImport(false)} />}
+        {showImport && <ImportDialog projectId={project.id} onClose={() => setShowImport(false)} />}
         {showExport && liveProject && (
           <ExportDialog
             projectId={project.id}
@@ -639,12 +773,7 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
           />
         )}
         {showHistory && liveProject && (
-          <HistoryPanel
-            projectId={project.id}
-            currentProject={liveProject}
-            user={user}
-            onClose={() => setShowHistory(false)}
-          />
+          <HistoryPanel projectId={project.id} currentProject={liveProject} onClose={() => setShowHistory(false)} />
         )}
         {showValidation && <ValidationPanel issues={validationIssues} onClose={() => setShowValidation(false)} />}
       </Suspense>
