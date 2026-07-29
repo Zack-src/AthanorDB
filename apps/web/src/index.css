@@ -1089,6 +1089,45 @@ textarea {
   cursor: pointer;
 }
 
+/* ---------- Ref edge (dotted, animated in the direction of cardinality) ---------- */
+
+.ref-edge-flow-path {
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 9;
+  /* Animation itself (duration varies with selection state) is set inline. */
+}
+
+@keyframes ref-edge-flow {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+
+.ref-edge-waypoint {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 2px solid;
+  cursor: grab;
+  box-shadow: var(--shadow-xs);
+  pointer-events: auto;
+  /* React Flow always paints nodes over the edge-label-renderer layer
+     (fixed DOM order, not z-index-driven), so a waypoint landing near/under
+     a table would otherwise be un-clickable — exactly where routing a
+     waypoint to steer *around* that table is most needed. */
+  z-index: 10;
+}
+
+.ref-edge-waypoint:active {
+  cursor: grabbing;
+}
+
+.ref-edge-waypoint-selected {
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
 /* ---------- Cursor node ---------- */
 
 .cursor-label {
