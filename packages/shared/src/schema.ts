@@ -47,6 +47,16 @@ export interface Table {
   size?: Size;
   style?: VisualStyle;
   detailLevel: DetailLevel;
+  comments?: Comment[];
+}
+
+export interface Comment {
+  id: Id;
+  author: string;
+  text: string;
+  createdAt: string;
+  /** Present -> comment on that field; absent -> comment on the table itself. */
+  fieldId?: Id;
 }
 
 export type RefCardinality = "one-to-one" | "one-to-many" | "many-to-many";
