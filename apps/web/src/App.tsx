@@ -25,6 +25,7 @@ import {
   getStickyNotesMap,
   getTablesMap,
   getZonesMap,
+  type Comment,
   type DetailLevel,
   type Project,
   type RevisionMeta,
@@ -313,6 +314,7 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
       data: {
         table,
         refFieldIds: refFieldIdsByTable.get(table.id) ?? new Set(),
+        currentUser: user,
         onRename: (name: string) => {
           const tables = getTablesMap(doc);
           const current = tables.get(table.id);
@@ -322,6 +324,19 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
           const tables = getTablesMap(doc);
           const current = tables.get(table.id);
           if (current) tables.set(table.id, { ...current, style: { color, borderColor } });
+        },
+        onAddComment: (text: string, fieldId?: string) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          const comment: Comment = { id: crypto.randomUUID(), author: user, text, createdAt: new Date().toISOString(), fieldId };
+          tables.set(table.id, { ...current, comments: [...(current.comments ?? []), comment] });
+        },
+        onDeleteComment: (commentId: string) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          tables.set(table.id, { ...current, comments: (current.comments ?? []).filter((c) => c.id !== commentId) });
         },
       },
     }));
@@ -353,7 +368,7 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
     }));
 
     return [...zoneNodes, ...tableNodes, ...stickyNodes];
-  }, [liveProject, doc, refFieldIdsByTable]);
+  }, [liveProject, doc, refFieldIdsByTable, user]);
 
   // React Flow needs local, controlled node state to show live drag position —
   // `builtNodes` (source of truth) only updates once the drag commits to the

@@ -228,3 +228,11 @@ export function NoteIcon({ size = 15, style, className }: IconProps) {
     </svg>
   );
 }
+
+export function CommentIcon({ size = 13, style, className }: IconProps) {
+  return (
+    <svg {...base(size)} style={style} className={className}>
+      <path d="M4 5h16v10.5H9.5L5 19v-3.5H4Z" />
+    </svg>
+  );
+}

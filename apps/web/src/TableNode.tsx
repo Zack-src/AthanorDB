@@ -2,14 +2,18 @@ import { memo, useState } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import type { Field, Table } from "@athanordb/shared";
 import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
+import { CommentThread } from "./CommentThread.js";
 import { DiamondIcon, KeyIcon, LinkIcon } from "./Icons.js";
 
 export interface TableNodeData {
   table: Table;
   /** Field ids that are either endpoint of some ref touching this table — always shown outside compact, even if not PK. */
   refFieldIds: Set<string>;
+  currentUser: string;
   onRename: (name: string) => void;
   onStyleChange: (color: string | undefined, borderColor: string | undefined) => void;
+  onAddComment: (text: string, fieldId?: string) => void;
+  onDeleteComment: (commentId: string) => void;
   [key: string]: unknown;
 }
 
@@ -28,6 +32,7 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
   const { table, refFieldIds } = data;
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(table.name);
+  const tableComments = table.comments?.filter((c) => !c.fieldId) ?? [];
 
   const rows =
     table.detailLevel === "compact"
@@ -75,6 +80,14 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
             {table.name}
           </span>
         )}
+        <CommentThread
+          comments={tableComments}
+          currentUser={data.currentUser}
+          onAdd={(text) => data.onAddComment(text)}
+          onDelete={data.onDeleteComment}
+          triggerClassName="table-node-comment"
+          title="Table comments"
+        />
         <ColorSwatchPicker
           value={table.style?.color ?? DEFAULT_HEADER_COLOR}
           onChange={(color) => data.onStyleChange(color, table.style?.borderColor)}
@@ -82,15 +95,26 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
           title="Header color"
         />
       </div>
-      {rows.map((field) => (
-        <div key={field.id} className="table-node-row">
-          <Handle type="target" position={Position.Left} id={field.id} style={{ background: "#9aa3b0" }} />
-          <FieldBadge field={field} isForeignKey={refFieldIds.has(field.id)} />
-          <span className="table-node-row-name">{field.name}</span>
-          {table.detailLevel === "full" && <span className="table-node-row-type">{field.type}</span>}
-          <Handle type="source" position={Position.Right} id={field.id} style={{ background: "#9aa3b0" }} />
-        </div>
-      ))}
+      {rows.map((field) => {
+        const fieldComments = table.comments?.filter((c) => c.fieldId === field.id) ?? [];
+        return (
+          <div key={field.id} className="table-node-row">
+            <Handle type="target" position={Position.Left} id={field.id} style={{ background: "#9aa3b0" }} />
+            <FieldBadge field={field} isForeignKey={refFieldIds.has(field.id)} />
+            <span className="table-node-row-name">{field.name}</span>
+            {table.detailLevel === "full" && <span className="table-node-row-type">{field.type}</span>}
+            <CommentThread
+              comments={fieldComments}
+              currentUser={data.currentUser}
+              onAdd={(text) => data.onAddComment(text, field.id)}
+              onDelete={data.onDeleteComment}
+              triggerClassName={`table-node-row-comment${table.detailLevel !== "full" ? " table-node-row-comment-auto" : ""}`}
+              title={`Comments on ${field.name}`}
+            />
+            <Handle type="source" position={Position.Right} id={field.id} style={{ background: "#9aa3b0" }} />
+          </div>
+        );
+      })}
     </div>
   );
 }
