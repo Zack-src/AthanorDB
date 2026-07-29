@@ -9,6 +9,7 @@ export interface TableNodeData {
   table: Table;
   /** Field ids that are either endpoint of some ref touching this table — always shown outside compact, even if not PK. */
   refFieldIds: Set<string>;
+  highlightLinks?: boolean;
   currentUser: string;
   palette: string[];
   onPaletteChange: (palette: string[]) => void;
@@ -104,8 +105,9 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
       </div>
       {rows.map((field) => {
         const fieldComments = table.comments?.filter((c) => c.fieldId === field.id) ?? [];
+        const isLinked = Boolean(data.highlightLinks && refFieldIds.has(field.id));
         return (
-          <div key={field.id} className="table-node-row">
+          <div key={field.id} className={`table-node-row${isLinked ? " table-node-row-linked" : ""}`}>
             <Handle type="target" position={Position.Left} id={`${field.id}-left-target`} className="table-row-handle" />
             <Handle type="source" position={Position.Left} id={`${field.id}-left-source`} className="table-row-handle" />
             <FieldBadge field={field} isForeignKey={refFieldIds.has(field.id)} />
