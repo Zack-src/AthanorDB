@@ -2,6 +2,7 @@
   "name": "athanordb",
   "private": true,
   "version": "0.0.1",
+  "type": "module",
   "description": "Local-first DBML schema diagram editor with multi-user editing and history.",
   "workspaces": [
     "apps/*",
@@ -11,9 +12,21 @@
     "dev:web": "npm run dev -w apps/web",
     "dev:server": "npm run dev -w apps/server",
     "build": "npm run build -w packages/shared && npm run build -w packages/dbml-engine && npm run build -w apps/server && npm run build -w apps/web",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.65.0"
   }
 }
