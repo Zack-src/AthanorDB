@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
@@ -97,6 +98,18 @@ function loadUser(): string {
   const generated = `user-${Math.random().toString(36).slice(2, 8)}`;
   localStorage.setItem(USER_KEY, generated);
   return generated;
+}
+
+// Canvas text size (accessibility) — a personal display preference, not
+// project data, so it lives in localStorage rather than the shared doc.
+const FONT_SCALE_KEY = "athanordb.canvasFontScale";
+const FONT_SCALE_MIN = 0.85;
+const FONT_SCALE_MAX = 1.6;
+const FONT_SCALE_STEP = 0.15;
+
+function loadFontScale(): number {
+  const saved = Number(localStorage.getItem(FONT_SCALE_KEY));
+  return saved >= FONT_SCALE_MIN && saved <= FONT_SCALE_MAX ? saved : 1;
 }
 
 export function App() {
@@ -240,6 +253,15 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
   const [dbmlOpen, setDbmlOpen] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  const [fontScale, setFontScale] = useState(loadFontScale);
+
+  useEffect(() => {
+    localStorage.setItem(FONT_SCALE_KEY, String(fontScale));
+  }, [fontScale]);
+
+  const adjustFontScale = (delta: number) => {
+    setFontScale((v) => Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, Math.round((v + delta) * 100) / 100)));
+  };
 
   const validationIssues: ValidationIssue[] = useMemo(
     () => (liveProject ? validateProject(liveProject) : []),
@@ -625,6 +647,26 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
             Full
           </button>
         </div>
+        <span className="toolbar-divider" />
+        <div className="toolbar-group font-scale-group" title="Canvas text size">
+          <button
+            className="btn btn-icon"
+            onClick={() => adjustFontScale(-FONT_SCALE_STEP)}
+            disabled={fontScale <= FONT_SCALE_MIN}
+            title="Decrease canvas text size"
+          >
+            <span className="font-scale-label font-scale-label-sm">A</span>
+          </button>
+          <span className="font-scale-value">{Math.round(fontScale * 100)}%</span>
+          <button
+            className="btn btn-icon"
+            onClick={() => adjustFontScale(FONT_SCALE_STEP)}
+            disabled={fontScale >= FONT_SCALE_MAX}
+            title="Increase canvas text size"
+          >
+            <span className="font-scale-label font-scale-label-lg">A</span>
+          </button>
+        </div>
         <span className="toolbar-spacer" />
         <div className="toolbar-group">
           <button className="btn btn-sm" onClick={() => setShowImport(true)}>
@@ -676,6 +718,7 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
             onAddTable={addTable}
             onAddZone={addZone}
             onAddNote={addStickyNote}
+            fontScale={fontScale}
           />
         </ReactFlowProvider>
       </div>
@@ -746,6 +789,7 @@ function CanvasArea(props: {
   onAddTable: (position: { x: number; y: number }) => void;
   onAddZone: (position: { x: number; y: number }) => void;
   onAddNote: (position: { x: number; y: number }) => void;
+  fontScale: number;
 }) {
   const { screenToFlowPosition } = useReactFlow();
   const [menu, setMenu] = useState<CanvasContextMenuState | null>(null);
@@ -787,7 +831,12 @@ function CanvasArea(props: {
   const nodes: AllNodes[] = [...props.nodes, ...props.cursorNodes];
 
   return (
-    <div className="canvas-pane" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+    <div
+      className="canvas-pane"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ "--canvas-font-scale": props.fontScale } as CSSProperties}
+    >
       <ReactFlow
         nodes={nodes}
         edges={props.edges}
