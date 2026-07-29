@@ -30,3 +30,14 @@ export function loadViewport(projectId: string, userId: string): Viewport | null
     return null;
   }
 }
+
+export const HIGHLIGHT_LINKS_KEY = "athanordb.highlightLinks";
+
+export function loadHighlightLinks(): boolean {
+  const saved = localStorage.getItem(HIGHLIGHT_LINKS_KEY);
+  return saved !== null ? saved === "true" : false;
+}
+
+export function saveHighlightLinks(val: boolean): void {
+  localStorage.setItem(HIGHLIGHT_LINKS_KEY, String(val));
+}
