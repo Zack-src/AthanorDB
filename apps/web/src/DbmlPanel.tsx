@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection, dropCursor } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
 import { oneDark } from "@codemirror/theme-one-dark";
 import type { Project } from "@athanordb/shared";
 import { ChevronLeftIcon, CodeIcon } from "./Icons.js";
-import { dbmlLanguage, dbmlCompletion, athanorEditorTheme } from "./codemirrorDbml.js";
+import { dbmlLanguage, dbmlCompletion, athanorEditorTheme, customTabBinding } from "./codemirrorDbml.js";
 
 type SyncStatus = "idle" | "typing" | "syncing" | "synced" | "error";
 
@@ -51,7 +51,7 @@ function CodeMirrorEditor(props: { value: string; onChange: (val: string) => voi
         dbmlLanguage,
         autocompletion({ override: [dbmlCompletion], selectOnOpen: true }),
         keymap.of([
-          indentWithTab,
+          customTabBinding,
           ...completionKeymap,
           ...defaultKeymap,
           ...historyKeymap,
