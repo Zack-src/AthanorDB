@@ -176,8 +176,16 @@ export function RefEdge({
     if (selectedPointIndex === null) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Backspace" && e.key !== "Delete") return;
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const target = e.target as HTMLElement | null;
+      if (
+        !target ||
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable ||
+        Boolean(target.closest(".monaco-editor, .nokey, [contenteditable='true']"))
+      ) {
+        return;
+      }
       e.preventDefault();
       const next = (data?.routingPoints ?? []).filter((_, i) => i !== selectedPointIndex);
       commitPoints(next);
