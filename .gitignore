@@ -10,3 +10,4 @@ build/
 *.sqlite-wal
 .turbo/
 coverage/
+backups/
