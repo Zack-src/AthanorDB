@@ -29,6 +29,30 @@ docs/
   todo.md       full project plan
 ```
 
+## Running
+
+```bash
+npm install
+npm run dev          # server (:3001) + web (:5173) together, with hot reload
+```
+
+Production (single process, single port — the server serves the built web app itself):
+
+```bash
+npm run build
+npm start             # http://localhost:3001
+```
+
+SQLite data location defaults to `./data/athanordb.sqlite`; override with `ATHANORDB_DB_PATH`. Port defaults to `3001`; override with `PORT`.
+
+### Docker
+
+```bash
+docker compose up --build
+```
+
+Serves on `:3001`, with project data persisted in a named volume (`athanordb-data`) rather than the container's own filesystem.
+
 ## Status
 
 Scaffolding stage. See `docs/todo.md` for the full plan and current progress.
