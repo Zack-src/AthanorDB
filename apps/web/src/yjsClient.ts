@@ -28,13 +28,18 @@ export interface ProjectConnection {
  * Client-side half of the raw sync/awareness protocol implemented by the
  * server's `Room` (apps/server/src/yjs/room.ts) — mirrors its message
  * framing since we hand-roll the WS transport instead of using `y-websocket`.
+ *
+ * `user` here is purely cosmetic (the awareness cursor's display name/color)
+ * — the server independently resolves the authoritative identity from the
+ * session cookie (sent automatically on same-origin WS upgrades), so it's no
+ * longer passed on the URL at all.
  */
 export function connectProject(projectId: string, user: string): ProjectConnection {
   const doc = new Y.Doc();
   const awareness = new awarenessProtocol.Awareness(doc);
 
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  const url = `${protocol}//${location.host}/ws/${projectId}?user=${encodeURIComponent(user)}`;
+  const url = `${protocol}//${location.host}/ws/${projectId}`;
   const socket = new WebSocket(url);
   socket.binaryType = "arraybuffer";
 
