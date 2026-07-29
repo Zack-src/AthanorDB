@@ -953,6 +953,15 @@ function DbmlPanel(props: { project: Project; projectId: string; user: string; o
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+  // executeEdits() below fires Monaco's onDidChangeModelContent same as a
+  // real keystroke would — @monaco-editor/react only suppresses that for
+  // edits *it* drives via the controlled `value` prop, not edits made
+  // directly through the editor API. Without this flag, our own remote-sync
+  // replace loops back through `handleChange` as if the user had just typed
+  // the (already-applied) server text, marking the doc dirty and
+  // re-POSTing it to /import — a redundant round-trip at best, and a race
+  // that can transiently wipe content at worst when it overlaps a real edit.
+  const suppressNextChangeRef = useRef(false);
 
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor;
@@ -982,6 +991,7 @@ function DbmlPanel(props: { project: Project; projectId: string; user: string; o
     }
     const normalized = next.replace(/\r\n|\n/g, model.getEOL());
     if (model.getValue() !== normalized) {
+      suppressNextChangeRef.current = true;
       const viewState = editor.saveViewState();
       editor.executeEdits("remote-sync", [{ range: model.getFullModelRange(), text: normalized }]);
       if (viewState) editor.restoreViewState(viewState);
@@ -1040,6 +1050,10 @@ function DbmlPanel(props: { project: Project; projectId: string; user: string; o
   }, []);
 
   const handleChange = (value: string | undefined) => {
+    if (suppressNextChangeRef.current) {
+      suppressNextChangeRef.current = false;
+      return;
+    }
     const next = value ?? "";
     setText(next);
     setDirty(true);
