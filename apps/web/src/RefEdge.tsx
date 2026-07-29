@@ -7,6 +7,7 @@ export interface RefEdgeData {
   routingPoints?: RoutingPoint[];
   highlightLinks?: boolean;
   onRoutingPointsChange: (points: RoutingPoint[] | undefined) => void;
+  onDeleteRef?: () => void;
   [key: string]: unknown;
 }
 
@@ -277,14 +278,14 @@ export function RefEdge({
             d={split.half1}
             fill="none"
             className="ref-edge-flow-path"
-            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation }}
+            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray: highlightLinks ? "0.1 9" : "none" }}
           />
           <path
             d={split.half2}
             fill="none"
             markerEnd={markerEnd}
             className="ref-edge-flow-path"
-            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation }}
+            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray: highlightLinks ? "0.1 9" : "none" }}
           />
         </>
       ) : (
@@ -293,7 +294,7 @@ export function RefEdge({
           fill="none"
           markerEnd={markerEnd}
           className="ref-edge-flow-path"
-          style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation }}
+          style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray: highlightLinks ? "0.1 9" : "none" }}
         />
       )}
       <path
@@ -380,6 +381,18 @@ export function RefEdge({
             <button className="context-menu-item" onClick={resetRouting}>
               Réinitialiser le tracé
             </button>
+            {data?.onDeleteRef && (
+              <button
+                className="context-menu-item"
+                style={{ color: "#ef4444" }}
+                onClick={() => {
+                  data.onDeleteRef?.();
+                  setContextMenu(null);
+                }}
+              >
+                Supprimer la relation
+              </button>
+            )}
           </div>
         )}
       </EdgeLabelRenderer>
