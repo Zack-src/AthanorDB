@@ -100,15 +100,60 @@ function CodeMirrorEditor(props: { value: string; onChange: (val: string) => voi
   );
 }
 
+const DEFAULT_PANEL_WIDTH = 440;
+const MIN_PANEL_WIDTH = 280;
+const STORAGE_KEY_WIDTH = "athanordb_dbml_panel_width";
+
 function DbmlPanel(props: { project: Project; projectId: string; onClose: () => void }) {
   const { project, projectId } = props;
   const [text, setText] = useState("");
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<SyncStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_WIDTH);
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed) && parsed >= MIN_PANEL_WIDTH) return parsed;
+    }
+    return DEFAULT_PANEL_WIDTH;
+  });
+  const [isResizing, setIsResizing] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirtyRef = useRef(dirty);
   const lastAppliedTextRef = useRef<string | null>(null);
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    const startX = e.clientX;
+    const startWidth = panelWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const maxWidth = Math.min(1200, window.innerWidth - 100);
+      const nextWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxWidth, startWidth + deltaX));
+      setPanelWidth(nextWidth);
+    };
+
+    const onMouseUp = (upEvent: MouseEvent) => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      setIsResizing(false);
+      const deltaX = upEvent.clientX - startX;
+      const maxWidth = Math.min(1200, window.innerWidth - 100);
+      const finalWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxWidth, startWidth + deltaX));
+      localStorage.setItem(STORAGE_KEY_WIDTH, String(finalWidth));
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }, [panelWidth]);
+
+  const handleDoubleClickResizer = useCallback(() => {
+    setPanelWidth(DEFAULT_PANEL_WIDTH);
+    localStorage.setItem(STORAGE_KEY_WIDTH, String(DEFAULT_PANEL_WIDTH));
+  }, []);
 
   useEffect(() => {
     dirtyRef.current = dirty;
@@ -186,7 +231,13 @@ function DbmlPanel(props: { project: Project; projectId: string; onClose: () => 
   };
 
   return (
-    <div className="side-panel nokey" style={{ width: 440 }}>
+    <div className="side-panel nokey" style={{ width: panelWidth }}>
+      <div
+        className={`side-panel-resizer ${isResizing ? "is-resizing" : ""}`}
+        onMouseDown={startResizing}
+        onDoubleClick={handleDoubleClickResizer}
+        title="Glisser pour redimensionner / Double-cliquer pour réinitialiser"
+      />
       <div className="panel-header">
         <CodeIcon size={14} style={{ color: "var(--color-text-muted)" }} />
         <span className="panel-title">DBML</span>
