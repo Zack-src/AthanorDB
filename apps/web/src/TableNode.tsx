@@ -2,9 +2,8 @@ import { memo, useEffect, useRef, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Handle, Position, useEdges, type Node, type NodeProps } from "@xyflow/react";
 import type { Field, Table } from "@athanordb/shared";
-import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
 import { CommentThread } from "./CommentThread.js";
-import { DiamondIcon, KeyIcon, LinkIcon, PencilIcon, PlusIcon, TrashIcon } from "./Icons.js";
+import { DiamondIcon, KeyIcon, LinkIcon, PencilIcon, PlusIcon, SettingsIcon, TrashIcon } from "./Icons.js";
 
 export interface TableNodeData {
   table: Table;
@@ -34,6 +33,133 @@ function FieldBadge({ field, isForeignKey }: { field: Field; isForeignKey: boole
   if (field.unique) return <DiamondIcon className="table-node-row-icon table-node-row-icon-unique" />;
   if (isForeignKey) return <LinkIcon className="table-node-row-icon" />;
   return <span className="table-node-row-icon" />;
+}
+
+function TableSettingsPopover({
+  table,
+  palette,
+  onRename,
+  onStyleChange,
+  triggerClassName,
+}: {
+  table: Table;
+  palette: string[];
+  onRename: (name: string) => void;
+  onStyleChange: (color: string | undefined, borderColor: string | undefined) => void;
+  triggerClassName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState(table.name);
+  const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
+
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setNameDraft(table.name);
+  }, [table.name]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (popoverRef.current?.contains(target) || triggerRef.current?.contains(target))) return;
+      setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("click", handleOutsideClick);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("click", handleOutsideClick);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const toggle = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPopoverPos({
+        x: Math.min(Math.max(10, rect.left), window.innerWidth - 270),
+        y: Math.min(rect.bottom + 6, window.innerHeight - 280),
+      });
+    }
+    setOpen((v) => !v);
+  };
+
+  const commitRename = () => {
+    const trimmed = nameDraft.trim();
+    if (trimmed && trimmed !== table.name) {
+      onRename(trimmed);
+    } else {
+      setNameDraft(table.name);
+    }
+  };
+
+  const currentColor = table.style?.color ?? DEFAULT_HEADER_COLOR;
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`nodrag ${triggerClassName}${open ? " has-open-popover" : ""}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggle();
+        }}
+        onDoubleClick={(e) => e.stopPropagation()}
+        title="Table settings"
+      >
+        <SettingsIcon size={13} />
+      </button>
+      {open &&
+        popoverPos &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            className="table-settings-popover nodrag"
+            style={{ left: popoverPos.x, top: popoverPos.y }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="table-settings-header">
+              <span className="table-settings-title">Table Settings</span>
+            </div>
+
+            <div className="table-settings-group">
+              <label className="table-settings-label">Table Name</label>
+              <input
+                className="input table-settings-input"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => e.key === "Enter" && commitRename()}
+                placeholder="Table name"
+              />
+            </div>
+
+            <div className="table-settings-group">
+              <label className="table-settings-label">Header Color</label>
+              <div className="color-popover-grid" style={{ marginTop: 4 }}>
+                {palette.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`color-swatch-cell${c.toLowerCase() === currentColor.toLowerCase() ? " color-swatch-cell-active" : ""}`}
+                    style={{ background: c }}
+                    onClick={() => onStyleChange(c, table.style?.borderColor)}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
 }
 
 function FieldEditorPopover({
@@ -130,7 +256,7 @@ function FieldEditorPopover({
       <button
         ref={triggerRef}
         type="button"
-        className={`nodrag ${triggerClassName}`}
+        className={`nodrag ${triggerClassName}${open ? " has-open-popover" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
           toggle();
@@ -344,22 +470,24 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
             {table.name}
           </span>
         )}
-        <CommentThread
-          comments={tableComments}
-          currentUser={data.currentUser}
-          onAdd={(text) => data.onAddComment(text)}
-          onDelete={data.onDeleteComment}
-          triggerClassName="table-node-comment"
-          title="Table comments"
-        />
-        <ColorSwatchPicker
-          value={table.style?.color ?? DEFAULT_HEADER_COLOR}
-          onChange={(color) => data.onStyleChange(color, table.style?.borderColor)}
-          palette={data.palette}
-          onPaletteChange={data.onPaletteChange}
-          triggerClassName="table-node-swatch"
-          title="Header color"
-        />
+
+        <div className="table-node-header-actions">
+          <CommentThread
+            comments={tableComments}
+            currentUser={data.currentUser}
+            onAdd={(text) => data.onAddComment(text)}
+            onDelete={data.onDeleteComment}
+            triggerClassName="table-node-header-btn table-node-comment"
+            title="Table comments"
+          />
+          <TableSettingsPopover
+            table={table}
+            palette={data.palette}
+            onRename={data.onRename}
+            onStyleChange={data.onStyleChange}
+            triggerClassName="table-node-header-btn table-node-settings"
+          />
+        </div>
       </div>
       {rows.map((field) => {
         const fieldComments = table.comments?.filter((c) => c.fieldId === field.id) ?? [];
@@ -392,23 +520,25 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
               {field.increment && <span className="field-kw-badge field-kw-badge-increment" title="Auto Increment">AI</span>}
             </div>
 
+            <div className="table-node-row-actions">
+              <FieldEditorPopover
+                field={field}
+                onUpdateField={data.onUpdateField}
+                onDeleteField={data.onDeleteField}
+                triggerClassName="table-node-row-action-btn table-node-row-edit"
+              />
+              <CommentThread
+                comments={fieldComments}
+                currentUser={data.currentUser}
+                onAdd={(text) => data.onAddComment(text, field.id)}
+                onDelete={data.onDeleteComment}
+                triggerClassName="table-node-row-action-btn table-node-row-comment"
+                title={`Comments on ${field.name}`}
+              />
+            </div>
+
             <span className="table-node-row-type">{field.type}</span>
 
-            <FieldEditorPopover
-              field={field}
-              onUpdateField={data.onUpdateField}
-              onDeleteField={data.onDeleteField}
-              triggerClassName="table-node-row-edit"
-            />
-
-            <CommentThread
-              comments={fieldComments}
-              currentUser={data.currentUser}
-              onAdd={(text) => data.onAddComment(text, field.id)}
-              onDelete={data.onDeleteComment}
-              triggerClassName="table-node-row-comment"
-              title={`Comments on ${field.name}`}
-            />
             <Handle type="target" position={Position.Right} id={`${field.id}-right-target`} className="table-row-handle" />
             <Handle type="source" position={Position.Right} id={`${field.id}-right-source`} className="table-row-handle" />
           </div>
@@ -438,4 +568,5 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
 }
 
 export const TableNode = memo(TableNodeImpl);
+
 
