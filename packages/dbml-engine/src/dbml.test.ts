@@ -134,6 +134,7 @@ test("mergeProjectIntoExisting preserves position/detailLevel/style for tables m
         position: { x: 777, y: 888 },
         detailLevel: "full",
         style: { color: "#123456" },
+        comments: [{ id: "c1", author: "alice", text: "double-check this table", createdAt: "2026-01-01" }],
       },
     ],
     refs: [],
@@ -163,6 +164,8 @@ Table posts {
   assert.deepEqual(users.position, { x: 777, y: 888 }, "existing position preserved");
   assert.equal(users.detailLevel, "full", "existing detail level preserved");
   assert.deepEqual(users.style, { color: "#123456" }, "existing style preserved");
+  assert.equal(users.comments?.length, 1, "existing comments preserved (dropped otherwise, since DBML has no equivalent)");
+  assert.equal(users.comments?.[0].text, "double-check this table");
 
   const idField = users.fields.find((f) => f.name === "id")!;
   assert.equal(idField.id, "old-field-id", "existing field id preserved by name match");

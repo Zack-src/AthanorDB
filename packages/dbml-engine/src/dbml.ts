@@ -304,9 +304,10 @@ export function projectToSql(project: Project, dialect: SqlDialect): string {
  * are just @dbml/core's parse-order assignments, optionally already overlaid
  * with sidecar visual metadata via `applyVisualMetadata`) into `existing`,
  * matching tables/fields by *name* so ids survive a reimport instead of
- * resetting every time. `existing`'s own position/size/style/detail-level win
- * when a table already has them; `incoming`'s (grid-default, or sidecar-
- * restored if the source carried one) only fill in for genuinely new tables.
+ * resetting every time. `existing`'s own position/size/style/detail-level/
+ * comments win when a table already has them; `incoming`'s (grid-default, or
+ * sidecar-restored if the source carried one; comments are DBML-native never,
+ * so always `undefined` on `incoming`) only fill in for genuinely new tables.
  * Same idea for zones/sticky notes, which have no per-table anchor to match
  * by: `existing`'s take priority, `incoming`'s (sidecar-only, never
  * DBML-native) only seed a project that doesn't have any yet. Refs and enums
@@ -343,6 +344,11 @@ export function mergeProjectIntoExisting(existing: Project, incoming: Project): 
       size: prev?.size ?? table.size,
       style: prev?.style ?? table.style,
       detailLevel: prev?.detailLevel ?? table.detailLevel,
+      // Comments have no DBML equivalent (like zones/sticky notes) — without
+      // this, every DBML-driven resync (which happens on nearly every canvas
+      // edit, via the live auto-sync loop) would silently wipe them, since
+      // `toProject` never populates this field at all.
+      comments: prev?.comments ?? table.comments,
     };
   });
 
