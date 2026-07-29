@@ -28,6 +28,7 @@ import {
   type DetailLevel,
   type Project,
   type RevisionMeta,
+  type RoutingPoint,
 } from "@athanordb/shared";
 import {
   diffProjects,
@@ -482,11 +483,20 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
         sourceHandle: fromCompact ? undefined : ref.from.fieldId,
         targetHandle: toCompact ? undefined : ref.to.fieldId,
         type: "ref",
-        data: { cardinality: ref.cardinality },
+        data: {
+          cardinality: ref.cardinality,
+          routingPoints: ref.routingPoints,
+          onRoutingPointsChange: (routingPoints: RoutingPoint[] | undefined) => {
+            if (!doc) return;
+            const refs = getRefsMap(doc);
+            const current = refs.get(ref.id);
+            if (current) refs.set(ref.id, { ...current, routingPoints });
+          },
+        },
         markerEnd: { type: MarkerType.ArrowClosed, color: CARDINALITY_STYLE[ref.cardinality].stroke },
       };
     });
-  }, [liveProject]);
+  }, [liveProject, doc]);
 
   const addTable = (position?: { x: number; y: number }) => {
     if (!doc) return;
