@@ -1,6 +1,42 @@
 import { StreamLanguage } from "@codemirror/language";
-import { autocompletion, type CompletionContext, type CompletionResult, snippetCompletion } from "@codemirror/autocomplete";
+import { acceptCompletion, autocompletion, type CompletionContext, type CompletionResult, snippetCompletion } from "@codemirror/autocomplete";
+import { indentMore, indentLess } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
+
+// Smart Tab key binding: accepts completion if open, indents if in leading whitespace or multi-line, inserts 2 spaces if after text
+export const customTabBinding = {
+  key: "Tab",
+  run: (view: EditorView) => {
+    if (acceptCompletion(view)) {
+      return true;
+    }
+    const { state } = view;
+    const { selection } = state;
+    const isMultiLine = selection.ranges.some((range) => {
+      const lineStart = state.doc.lineAt(range.from).number;
+      const lineEnd = state.doc.lineAt(range.to).number;
+      return lineStart !== lineEnd;
+    });
+
+    if (isMultiLine) {
+      return indentMore(view);
+    }
+
+    const primary = selection.main;
+    const line = state.doc.lineAt(primary.head);
+    const textBefore = line.text.slice(0, primary.head - line.from);
+
+    if (/^\s*$/.test(textBefore)) {
+      return indentMore(view);
+    }
+
+    view.dispatch(view.state.replaceSelection("  "));
+    return true;
+  },
+  shift: (view: EditorView) => {
+    return indentLess(view);
+  },
+};
 
 const DBML_TYPES = [
   "integer",
