@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
-import { EdgeLabelRenderer, getBezierPath, useReactFlow, type Edge, type EdgeProps } from "@xyflow/react";
+import { EdgeLabelRenderer, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps } from "@xyflow/react";
 import type { RefCardinality, RoutingPoint } from "@athanordb/shared";
 
 export interface RefEdgeData {
@@ -24,6 +24,22 @@ interface Point {
 
 function polylinePath(points: Point[]): string {
   return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+}
+
+function orthogonalPolylinePath(points: Point[]): string {
+  if (points.length < 2) return "";
+  const result: Point[] = [points[0]];
+  for (let i = 0; i < points.length - 1; i++) {
+    const curr = points[i];
+    const next = points[i + 1];
+    if (curr.x !== next.x && curr.y !== next.y) {
+      const midX = (curr.x + next.x) / 2;
+      result.push({ x: midX, y: curr.y });
+      result.push({ x: midX, y: next.y });
+    }
+    result.push(next);
+  }
+  return polylinePath(result);
 }
 
 /** Squared distance from `p` to its nearest point on segment `a`-`b`, plus the segment-relative position of that projection (0..1). */
@@ -81,16 +97,17 @@ export function RefEdge({
     [sourceX, sourceY, points, targetX, targetY],
   );
 
-  const [bezierPath, bezierLabelX, bezierLabelY] = getBezierPath({
+  const [stepPath, stepLabelX, stepLabelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
     targetPosition,
+    borderRadius: 0,
   });
   const routed = points.length > 0;
-  const fullPath = routed ? polylinePath(allPoints) : bezierPath;
+  const fullPath = routed ? orthogonalPolylinePath(allPoints) : stepPath;
 
   // Measured off the real rendered path rather than derived analytically —
   // works the same way whether `fullPath` is the bezier curve or a manual
@@ -121,8 +138,8 @@ export function RefEdge({
     });
   }, [fullPath]);
 
-  const labelX = routed ? (split?.mid.x ?? bezierLabelX) : bezierLabelX;
-  const labelY = routed ? (split?.mid.y ?? bezierLabelY) : bezierLabelY;
+  const labelX = routed ? (split?.mid.x ?? stepLabelX) : stepLabelX;
+  const labelY = routed ? (split?.mid.y ?? stepLabelY) : stepLabelY;
 
   const commitPoints = (next: RoutingPoint[]) => {
     data?.onRoutingPointsChange(next.length > 0 ? next : undefined);
