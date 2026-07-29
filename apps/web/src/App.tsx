@@ -18,6 +18,7 @@ import {
   MarkerType,
   applyNodeChanges,
   type NodeChange,
+  type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import Editor, { type OnMount } from "@monaco-editor/react";
@@ -110,6 +111,24 @@ const FONT_SCALE_STEP = 0.15;
 function loadFontScale(): number {
   const saved = Number(localStorage.getItem(FONT_SCALE_KEY));
   return saved >= FONT_SCALE_MIN && saved <= FONT_SCALE_MAX ? saved : 1;
+}
+
+// Canvas pan/zoom — also personal, and specific to a (project, user) pair
+// rather than the project itself, so it's keyed localStorage rather than
+// shared-doc state: two people on the same project shouldn't yank each
+// other's viewport around, and the same person's saved position shouldn't
+// follow them into a different project.
+function viewportKey(projectId: string, user: string): string {
+  return `athanordb.viewport.${projectId}.${user}`;
+}
+
+function loadViewport(projectId: string, user: string): Viewport | null {
+  try {
+    const raw = localStorage.getItem(viewportKey(projectId, user));
+    return raw ? (JSON.parse(raw) as Viewport) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function App() {
@@ -719,6 +738,8 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
             onAddZone={addZone}
             onAddNote={addStickyNote}
             fontScale={fontScale}
+            projectId={project.id}
+            user={user}
           />
         </ReactFlowProvider>
       </div>
@@ -790,9 +811,15 @@ function CanvasArea(props: {
   onAddZone: (position: { x: number; y: number }) => void;
   onAddNote: (position: { x: number; y: number }) => void;
   fontScale: number;
+  projectId: string;
+  user: string;
 }) {
   const { screenToFlowPosition } = useReactFlow();
   const [menu, setMenu] = useState<CanvasContextMenuState | null>(null);
+  // Lazy initializer: read once at mount, not on every render — this decides
+  // whether the very first render asks React Flow to `fitView` or restore
+  // exactly where this user left the canvas last time.
+  const [initialViewport] = useState(() => loadViewport(props.projectId, props.user));
 
   const handleMouseMove = (e: ReactMouseEvent) => {
     props.awareness?.setLocalStateField("cursor", screenToFlowPosition({ x: e.clientX, y: e.clientY }));
@@ -843,12 +870,14 @@ function CanvasArea(props: {
         onNodesChange={props.onNodesChange}
         onPaneContextMenu={handlePaneContextMenu}
         onMoveStart={closeMenu}
+        onMoveEnd={(_, viewport) => localStorage.setItem(viewportKey(props.projectId, props.user), JSON.stringify(viewport))}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         deleteKeyCode={["Backspace", "Delete"]}
         snapToGrid
         snapGrid={[10, 10]}
-        fitView
+        fitView={!initialViewport}
+        defaultViewport={initialViewport ?? undefined}
       >
         <Background color="#33353c" gap={20} />
         <Controls />
