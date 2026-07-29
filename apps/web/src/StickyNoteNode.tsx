@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { NodeResizer, type Node, type NodeProps } from "@xyflow/react";
 import type { StickyNote } from "@athanordb/shared";
+import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
 
 export interface StickyNoteNodeData {
   note: StickyNote;
@@ -39,13 +40,7 @@ function StickyNoteNodeImpl({ data, selected }: NodeProps<StickyNoteNodeType>) {
           placeholder="Note…"
         />
         <div className="sticky-node-footer">
-          <input
-            type="color"
-            className="nodrag sticky-node-swatch"
-            value={color}
-            onChange={(e) => data.onColorChange(e.target.value)}
-            title="Note color"
-          />
+          <ColorSwatchPicker value={color} onChange={data.onColorChange} triggerClassName="sticky-node-swatch" title="Note color" />
         </div>
       </div>
     </>

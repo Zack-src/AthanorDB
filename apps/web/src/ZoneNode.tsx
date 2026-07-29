@@ -1,6 +1,7 @@
 import { memo, useState } from "react";
 import { NodeResizer, type Node, type NodeProps } from "@xyflow/react";
 import type { Zone } from "@athanordb/shared";
+import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
 
 export interface ZoneNodeData {
   zone: Zone;
@@ -66,13 +67,7 @@ function ZoneNodeImpl({ data, selected }: NodeProps<ZoneNodeType>) {
               {zone.label}
             </span>
           )}
-          <input
-            type="color"
-            className="nodrag zone-node-swatch"
-            value={color}
-            onChange={(e) => data.onColorChange(e.target.value)}
-            title="Zone color"
-          />
+          <ColorSwatchPicker value={color} onChange={data.onColorChange} triggerClassName="zone-node-swatch" title="Zone color" />
         </div>
       </div>
     </>

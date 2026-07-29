@@ -1,6 +1,7 @@
 import { memo, useState } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import type { Field, Table } from "@athanordb/shared";
+import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
 import { DiamondIcon, KeyIcon, LinkIcon } from "./Icons.js";
 
 export interface TableNodeData {
@@ -74,12 +75,10 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
             {table.name}
           </span>
         )}
-        <input
-          type="color"
-          className="nodrag table-node-swatch"
+        <ColorSwatchPicker
           value={table.style?.color ?? DEFAULT_HEADER_COLOR}
-          onChange={(e) => data.onStyleChange(e.target.value, table.style?.borderColor)}
-          onDoubleClick={(e) => e.stopPropagation()}
+          onChange={(color) => data.onStyleChange(color, table.style?.borderColor)}
+          triggerClassName="table-node-swatch"
           title="Header color"
         />
       </div>
