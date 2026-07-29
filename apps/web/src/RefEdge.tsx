@@ -262,12 +262,13 @@ export function RefEdge({
     };
   }, [selectedPointIndex, points]);
 
-  const highlightLinks = Boolean(data?.highlightLinks);
-  const strokeColor = selected ? style.stroke : highlightLinks ? style.stroke : "#475569";
-  const strokeWidth = selected ? 3 : highlightLinks ? 2.25 : 1.5;
-  const strokeOpacity = selected ? 1 : highlightLinks ? 0.85 : 0.45;
-  const dotAnimation = highlightLinks ? `ref-edge-flow ${selected ? 0.5 : 0.8}s linear infinite` : "none";
-  const showCardinalityBadge = highlightLinks || selected;
+  const isHighlighted = Boolean(data?.highlightLinks || selected);
+  const strokeColor = isHighlighted ? style.stroke : "#475569";
+  const strokeWidth = selected ? 3 : isHighlighted ? 2.25 : 1.5;
+  const strokeOpacity = selected ? 1 : isHighlighted ? 0.85 : 0.45;
+  const dotAnimation = isHighlighted ? `ref-edge-flow ${selected ? 0.5 : 0.8}s linear infinite` : "none";
+  const strokeDasharray = isHighlighted ? "0.1 9" : "none";
+  const showCardinalityBadge = isHighlighted;
 
   return (
     <>
@@ -278,14 +279,14 @@ export function RefEdge({
             d={split.half1}
             fill="none"
             className="ref-edge-flow-path"
-            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray: highlightLinks ? "0.1 9" : "none" }}
+            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray }}
           />
           <path
             d={split.half2}
             fill="none"
             markerEnd={markerEnd}
             className="ref-edge-flow-path"
-            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray: highlightLinks ? "0.1 9" : "none" }}
+            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray }}
           />
         </>
       ) : (
@@ -294,7 +295,7 @@ export function RefEdge({
           fill="none"
           markerEnd={markerEnd}
           className="ref-edge-flow-path"
-          style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray: highlightLinks ? "0.1 9" : "none" }}
+          style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation, strokeDasharray }}
         />
       )}
       <path
