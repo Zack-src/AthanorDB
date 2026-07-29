@@ -573,15 +573,44 @@ function ProjectEditor(props: {
   const edges: RefEdgeType[] = useMemo(() => {
     if (!liveProject) return [];
     const tablesById = new Map(liveProject.tables.map((t) => [t.id, t]));
+    const nodesById = new Map(nodes.map((n) => [n.id, n]));
+
     return liveProject.refs.map((ref) => {
-      const fromCompact = tablesById.get(ref.from.tableId)?.detailLevel === "compact";
-      const toCompact = tablesById.get(ref.to.tableId)?.detailLevel === "compact";
+      const fromTable = tablesById.get(ref.from.tableId);
+      const toTable = tablesById.get(ref.to.tableId);
+
+      const fromNode = nodesById.get(ref.from.tableId);
+      const toNode = nodesById.get(ref.to.tableId);
+
+      const fromX = fromNode?.position.x ?? fromTable?.position.x ?? 0;
+      const toX = toNode?.position.x ?? toTable?.position.x ?? 0;
+
+      const isFromLeft = fromX <= toX;
+      const isSelfRef = ref.from.tableId === ref.to.tableId;
+
+      const fromCompact = fromTable?.detailLevel === "compact";
+      const toCompact = toTable?.detailLevel === "compact";
+
+      let sourceHandle: string;
+      let targetHandle: string;
+
+      if (isSelfRef) {
+        sourceHandle = fromCompact ? "header-right-source" : `${ref.from.fieldId}-right-source`;
+        targetHandle = toCompact ? "header-right-target" : `${ref.to.fieldId}-right-target`;
+      } else if (isFromLeft) {
+        sourceHandle = fromCompact ? "header-right-source" : `${ref.from.fieldId}-right-source`;
+        targetHandle = toCompact ? "header-left-target" : `${ref.to.fieldId}-left-target`;
+      } else {
+        sourceHandle = fromCompact ? "header-left-source" : `${ref.from.fieldId}-left-source`;
+        targetHandle = toCompact ? "header-right-target" : `${ref.to.fieldId}-right-target`;
+      }
+
       return {
         id: ref.id,
         source: ref.from.tableId,
         target: ref.to.tableId,
-        sourceHandle: fromCompact ? undefined : ref.from.fieldId,
-        targetHandle: toCompact ? undefined : ref.to.fieldId,
+        sourceHandle,
+        targetHandle,
         type: "ref",
         data: {
           cardinality: ref.cardinality,
@@ -596,7 +625,7 @@ function ProjectEditor(props: {
         markerEnd: { type: MarkerType.ArrowClosed, color: CARDINALITY_STYLE[ref.cardinality].stroke },
       };
     });
-  }, [liveProject, doc]);
+  }, [liveProject, doc, nodes]);
 
   const addTable = (position?: { x: number; y: number }) => {
     if (!doc) return;
