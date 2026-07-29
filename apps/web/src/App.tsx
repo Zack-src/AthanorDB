@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
+  type MutableRefObject,
   type ReactNode,
 } from "react";
 import {
@@ -41,6 +42,8 @@ import {
   type ProjectDiff,
   type ValidationIssue,
 } from "@athanordb/dbml-engine";
+import { toPng, toSvg } from "html-to-image";
+import { jsPDF } from "jspdf";
 import { useProjectDoc } from "./useProjectDoc.js";
 import { useAwarenessStates } from "./useAwarenessStates.js";
 import { computeAutoLayout } from "./autoLayout.js";
@@ -89,7 +92,18 @@ interface ProjectSummary {
 }
 
 type SqlDialect = "postgres" | "mysql" | "mssql";
-type ExportFormat = "dbml" | SqlDialect;
+type ImageFormat = "png" | "svg" | "pdf";
+type ExportFormat = "dbml" | SqlDialect | ImageFormat;
+
+interface CanvasImageCapture {
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
+interface CanvasExportHandle {
+  capture: (format: "png" | "svg") => Promise<CanvasImageCapture>;
+}
 
 const USER_KEY = "athanordb.user";
 
@@ -281,6 +295,15 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
   const adjustFontScale = (delta: number) => {
     setFontScale((v) => Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, Math.round((v + delta) * 100) / 100)));
   };
+
+  // Populated by CanvasArea (inside the ReactFlowProvider) so ExportDialog
+  // (outside it) can still trigger a canvas screenshot.
+  const canvasExportRef = useRef<CanvasExportHandle | null>(null);
+  const captureCanvasImage = useCallback(
+    (format: "png" | "svg") =>
+      canvasExportRef.current?.capture(format) ?? Promise.reject(new Error("Canvas is not ready yet")),
+    [],
+  );
 
   const validationIssues: ValidationIssue[] = useMemo(
     () => (liveProject ? validateProject(liveProject) : []),
@@ -740,12 +763,18 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
             fontScale={fontScale}
             projectId={project.id}
             user={user}
+            exportRef={canvasExportRef}
           />
         </ReactFlowProvider>
       </div>
       {showImport && <ImportDialog projectId={project.id} user={user} onClose={() => setShowImport(false)} />}
       {showExport && liveProject && (
-        <ExportDialog projectId={project.id} projectName={project.name} onClose={() => setShowExport(false)} />
+        <ExportDialog
+          projectId={project.id}
+          projectName={project.name}
+          captureCanvasImage={captureCanvasImage}
+          onClose={() => setShowExport(false)}
+        />
       )}
       {showHistory && liveProject && (
         <HistoryPanel
@@ -813,13 +842,42 @@ function CanvasArea(props: {
   fontScale: number;
   projectId: string;
   user: string;
+  exportRef: MutableRefObject<CanvasExportHandle | null>;
 }) {
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow();
   const [menu, setMenu] = useState<CanvasContextMenuState | null>(null);
   // Lazy initializer: read once at mount, not on every render — this decides
   // whether the very first render asks React Flow to `fitView` or restore
   // exactly where this user left the canvas last time.
   const [initialViewport] = useState(() => loadViewport(props.projectId, props.user));
+
+  // Exposed imperatively (not via props/state) because the Export dialog
+  // that triggers this lives outside the ReactFlowProvider this component is
+  // rendered inside — it has no other way to reach `fitView`/`getViewport`.
+  // Cheap to reassign every render: pure closure construction, no DOM/side
+  // effects until actually invoked.
+  props.exportRef.current = {
+    capture: async (format) => {
+      const paneEl = document.querySelector(".react-flow__pane") as HTMLElement | null;
+      if (!paneEl) throw new Error("Canvas is not ready yet");
+      const prevViewport = getViewport();
+      // Fit the *entire* diagram into the current pane size first — reuses
+      // React Flow's own (already correct) fit logic instead of hand-rolling
+      // bounds/zoom math, and means the export isn't just whatever happens
+      // to be on-screen from the user's last pan/zoom.
+      fitView({ padding: 0.15, duration: 0 });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const width = paneEl.clientWidth;
+      const height = paneEl.clientHeight;
+      try {
+        const options = { backgroundColor: "#17181b", width, height, pixelRatio: format === "png" ? 2 : 1 };
+        const dataUrl = format === "png" ? await toPng(paneEl, options) : await toSvg(paneEl, options);
+        return { dataUrl, width, height };
+      } finally {
+        setViewport(prevViewport, { duration: 0 });
+      }
+    },
+  };
 
   const handleMouseMove = (e: ReactMouseEvent) => {
     props.awareness?.setLocalStateField("cursor", screenToFlowPosition({ x: e.clientX, y: e.clientY }));
@@ -912,13 +970,20 @@ function Modal(props: { title: string; onClose: () => void; children: ReactNode;
   );
 }
 
-function FormatSelect(props: { value: ExportFormat; onChange: (v: ExportFormat) => void }) {
+function FormatSelect(props: { value: ExportFormat; onChange: (v: ExportFormat) => void; includeImageFormats?: boolean }) {
   return (
     <select className="select" value={props.value} onChange={(e) => props.onChange(e.target.value as ExportFormat)}>
       <option value="dbml">DBML</option>
       <option value="postgres">SQL — Postgres</option>
       <option value="mysql">SQL — MySQL</option>
       <option value="mssql">SQL — SQL Server</option>
+      {props.includeImageFormats && (
+        <>
+          <option value="png">Image — PNG</option>
+          <option value="svg">Image — SVG</option>
+          <option value="pdf">PDF</option>
+        </>
+      )}
     </select>
   );
 }
@@ -947,7 +1012,7 @@ function ImportDialog(props: { projectId: string; user: string; onClose: () => v
     setBusy(true);
     setError(null);
     const body: { source: string; dialect?: SqlDialect } = { source };
-    if (format !== "dbml") body.dialect = format;
+    if (format === "postgres" || format === "mysql" || format === "mssql") body.dialect = format;
     try {
       const res = await fetch(`/api/projects/${props.projectId}/import?user=${encodeURIComponent(props.user)}`, {
         method: "POST",
@@ -1007,15 +1072,50 @@ function ImportDialog(props: { projectId: string; user: string; onClose: () => v
   );
 }
 
-function ExportDialog(props: { projectId: string; projectName: string; onClose: () => void }) {
+/** JPEG has no alpha channel, so the background must be painted in explicitly before drawing the (possibly-transparent) source image on top. */
+function pngDataUrlToJpeg(pngDataUrl: string, width: number, height: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("2D canvas context unavailable"));
+        return;
+      }
+      ctx.fillStyle = "#17181b";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
+    };
+    img.onerror = () => reject(new Error("Failed to prepare the canvas snapshot for PDF export"));
+    img.src = pngDataUrl;
+  });
+}
+
+const IMAGE_FORMATS = new Set<ExportFormat>(["png", "svg", "pdf"]);
+
+function ExportDialog(props: {
+  projectId: string;
+  projectName: string;
+  captureCanvasImage: (format: "png" | "svg") => Promise<CanvasImageCapture>;
+  onClose: () => void;
+}) {
   const [format, setFormat] = useState<ExportFormat>("dbml");
   const [text, setText] = useState("");
+  const [image, setImage] = useState<CanvasImageCapture | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isImage = IMAGE_FORMATS.has(format);
 
   useEffect(() => {
+    if (isImage) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the fetch this same effect kicks off
     setBusy(true);
+    setError(null);
     const url =
       format === "dbml"
         ? `/api/projects/${props.projectId}/export/dbml?visual=1`
@@ -1023,7 +1123,23 @@ function ExportDialog(props: { projectId: string; projectName: string; onClose: 
     fetch(url)
       .then(async (res) => setText(res.ok ? await res.text() : `Error: ${res.status}`))
       .finally(() => setBusy(false));
-  }, [format, props.projectId]);
+  }, [format, isImage, props.projectId]);
+
+  useEffect(() => {
+    if (!isImage) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the capture this same effect kicks off
+    setBusy(true);
+    setError(null);
+    props.captureCanvasImage(format === "svg" ? "svg" : "png")
+      .then(setImage)
+      .catch((err) => setError((err as Error).message))
+      .finally(() => setBusy(false));
+    // props.captureCanvasImage is a useCallback with an empty dep array in
+    // the parent, so it's stable — omitting it here (rather than in the
+    // caller) avoids re-capturing every time the parent re-renders for
+    // unrelated reasons.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [format, isImage]);
 
   const copy = () => {
     navigator.clipboard.writeText(text);
@@ -1031,34 +1147,70 @@ function ExportDialog(props: { projectId: string; projectName: string; onClose: 
     setTimeout(() => setCopied(false), 1200);
   };
 
-  const download = () => {
+  const downloadDataUrl = (dataUrl: string, filename: string) => {
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = filename;
+    a.click();
+  };
+
+  const download = async () => {
+    if (format === "png" || format === "svg") {
+      if (image) downloadDataUrl(image.dataUrl, `${props.projectName}.${format}`);
+      return;
+    }
+    if (format === "pdf") {
+      if (!image) return;
+      // jsPDF's addImage embeds a PNG essentially uncompressed — a two-table
+      // diagram came out over 10MB. Re-encoding to JPEG first (this is a
+      // decorative snapshot, not something needing lossless fidelity) brings
+      // that down by roughly two orders of magnitude.
+      const jpeg = await pngDataUrlToJpeg(image.dataUrl, image.width, image.height);
+      const orientation = image.width >= image.height ? "landscape" : "portrait";
+      const pdf = new jsPDF({ orientation, unit: "px", format: [image.width, image.height] });
+      pdf.addImage(jpeg, "JPEG", 0, 0, image.width, image.height);
+      pdf.save(`${props.projectName}.pdf`);
+      return;
+    }
     const ext = format === "dbml" ? "dbml" : "sql";
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${props.projectName}.${ext}`;
-    a.click();
+    downloadDataUrl(url, `${props.projectName}.${ext}`);
     URL.revokeObjectURL(url);
   };
 
   return (
     <Modal title="Export schema" onClose={props.onClose}>
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <FormatSelect value={format} onChange={setFormat} />
-        <button className="btn" onClick={copy} disabled={busy}>
-          {copied ? "Copied" : "Copy"}
-        </button>
-        <button className="btn btn-primary" onClick={download} disabled={busy}>
+        <FormatSelect value={format} onChange={setFormat} includeImageFormats />
+        {!isImage && (
+          <button className="btn" onClick={copy} disabled={busy}>
+            {copied ? "Copied" : "Copy"}
+          </button>
+        )}
+        <button className="btn btn-primary" onClick={download} disabled={busy || (isImage && !image)}>
           <DownloadIcon size={13} /> Download
         </button>
       </div>
-      <textarea
-        readOnly
-        className="textarea textarea-code"
-        value={busy ? "Loading…" : text}
-        style={{ width: "100%", height: 320 }}
-      />
+      {isImage ? (
+        <div className="export-image-preview">
+          {busy && <span style={{ color: "var(--color-text-muted)" }}>Rendering canvas…</span>}
+          {!busy && image && <img src={image.dataUrl} alt="Canvas snapshot preview" />}
+          {format === "pdf" && !busy && image && (
+            <p className="modal-hint" style={{ marginTop: 8 }}>
+              Downloads as a single-page PDF with this snapshot filling the page.
+            </p>
+          )}
+        </div>
+      ) : (
+        <textarea
+          readOnly
+          className="textarea textarea-code"
+          value={busy ? "Loading…" : text}
+          style={{ width: "100%", height: 320 }}
+        />
+      )}
+      {error && <div className="modal-error">{error}</div>}
     </Modal>
   );
 }
