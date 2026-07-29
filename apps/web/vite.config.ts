@@ -16,6 +16,13 @@ export default defineConfig({
               return;
             }
           });
+          proxy.on("proxyReqWs", (_proxyReq, _req, socket) => {
+            socket.on("error", (err) => {
+              if ((err as any)?.code === "ECONNABORTED" || (err as any)?.code === "ECONNRESET") {
+                return;
+              }
+            });
+          });
         },
       },
     },
