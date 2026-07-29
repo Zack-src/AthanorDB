@@ -496,7 +496,13 @@ function ProjectEditor(props: { project: ProjectSummary; user: string; onUserCha
     tables.set(id, {
       id,
       name: `table_${index + 1}`,
-      fields: [],
+      // A field-less table isn't just useless — @dbml/core's parser actually
+      // throws on `Table t { }` (zero columns), which would break the live
+      // DBML round-trip the moment this table's text gets re-imported (e.g.
+      // the user edits any other table before giving this one a column).
+      // Seeding an id column sidesteps that entirely, and matches how every
+      // other schema tool (dbdiagram included) seeds a new table.
+      fields: [{ id: crypto.randomUUID(), name: "id", type: "int", pk: true, increment: true }],
       indexes: [],
       position: position ?? { x: (index % 6) * 260, y: Math.floor(index / 6) * 200 },
       detailLevel: "standard",
@@ -865,7 +871,7 @@ function ExportDialog(props: { projectId: string; projectName: string; onClose: 
     setBusy(true);
     const url =
       format === "dbml"
-        ? `/api/projects/${props.projectId}/export/dbml`
+        ? `/api/projects/${props.projectId}/export/dbml?visual=1`
         : `/api/projects/${props.projectId}/export/sql?dialect=${format}`;
     fetch(url)
       .then(async (res) => setText(res.ok ? await res.text() : `Error: ${res.status}`))
