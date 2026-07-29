@@ -15,12 +15,15 @@ export function ProjectList(props: {
   newName: string;
   onNewNameChange: (v: string) => void;
   onCreate: () => void;
+  createError: string | null;
   onOpen: (p: ProjectSummary) => void;
   onRename: (p: ProjectSummary, name: string) => void;
   onSetStatus: (p: ProjectSummary, status: ProjectStatus) => void;
   onDeleteForever: (p: ProjectSummary) => Promise<string | null>;
+  onEmptyTrash: (projects: ProjectSummary[]) => Promise<string | null>;
 }) {
-  const { projects, newName, onNewNameChange, onCreate, onOpen, onRename, onSetStatus, onDeleteForever } = props;
+  const { projects, newName, onNewNameChange, onCreate, createError, onOpen, onRename, onSetStatus, onDeleteForever, onEmptyTrash } =
+    props;
   const [section, setSection] = useState<ProjectStatus>("active");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState("");
@@ -28,6 +31,10 @@ export function ProjectList(props: {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [teamsTarget, setTeamsTarget] = useState<ProjectSummary | null>(null);
+  const [emptyTrashOpen, setEmptyTrashOpen] = useState(false);
+  const [emptyTrashConfirm, setEmptyTrashConfirm] = useState("");
+  const [emptyTrashError, setEmptyTrashError] = useState<string | null>(null);
+  const [emptyTrashBusy, setEmptyTrashBusy] = useState(false);
 
   const startRename = (p: ProjectSummary) => {
     setRenamingId(p.id);
@@ -57,6 +64,29 @@ export function ProjectList(props: {
   const current = SECTIONS.find((s) => s.key === section)!;
   const visible = projects.filter((p) => p.status === section);
   const openable = section !== "trashed";
+  // Only projects this user can actually hard-delete — mirrors the per-card
+  // gating below, so "empty trash" never attempts a delete the server would
+  // reject anyway.
+  const trashedDeletable = projects.filter((p) => p.status === "trashed" && p.permission === "administrator");
+
+  const openEmptyTrashConfirm = () => {
+    setEmptyTrashError(null);
+    setEmptyTrashConfirm("");
+    setEmptyTrashOpen(true);
+  };
+
+  // Typing the exact word is the guard against "misclick nukes everything" —
+  // a click-through confirm modal is not enough friction for an action this
+  // destructive and irreversible.
+  const EMPTY_TRASH_CONFIRM_WORD = "SUPPRIMER";
+  const confirmEmptyTrash = async () => {
+    if (emptyTrashConfirm !== EMPTY_TRASH_CONFIRM_WORD) return;
+    setEmptyTrashBusy(true);
+    const err = await onEmptyTrash(trashedDeletable);
+    setEmptyTrashBusy(false);
+    if (err) setEmptyTrashError(err);
+    else setEmptyTrashOpen(false);
+  };
 
   return (
     <div className="project-list-page">
@@ -76,6 +106,7 @@ export function ProjectList(props: {
             <PlusIcon size={14} /> Create
           </button>
         </div>
+        {createError && <div className="modal-error">{createError}</div>}
         <div className="project-tabs">
           {SECTIONS.map((s) => {
             const count = projects.filter((p) => p.status === s.key).length;
@@ -91,6 +122,13 @@ export function ProjectList(props: {
             );
           })}
         </div>
+        {section === "trashed" && trashedDeletable.length > 0 && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+            <button className="btn btn-danger btn-sm" onClick={openEmptyTrashConfirm}>
+              <TrashIcon size={13} /> Empty trash ({trashedDeletable.length})
+            </button>
+          </div>
+        )}
         {visible.length === 0 ? (
           <div className="empty-state">{current.empty}</div>
         ) : (
@@ -257,6 +295,38 @@ export function ProjectList(props: {
             </button>
           </div>
           {deleteError && <div className="modal-error">{deleteError}</div>}
+        </Modal>
+      )}
+      {emptyTrashOpen && (
+        <Modal title="Empty trash" onClose={() => !emptyTrashBusy && setEmptyTrashOpen(false)}>
+          <p className="modal-hint">
+            Permanently delete <strong>{trashedDeletable.length}</strong> project(s) in the trash, including their
+            whole revision history. This can't be undone.
+          </p>
+          <p className="modal-hint">
+            Type <strong>{EMPTY_TRASH_CONFIRM_WORD}</strong> to confirm.
+          </p>
+          <input
+            autoFocus
+            className="input"
+            value={emptyTrashConfirm}
+            onChange={(e) => setEmptyTrashConfirm(e.target.value)}
+            placeholder={EMPTY_TRASH_CONFIRM_WORD}
+            disabled={emptyTrashBusy}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+            <button className="btn" onClick={() => setEmptyTrashOpen(false)} disabled={emptyTrashBusy}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-danger"
+              onClick={confirmEmptyTrash}
+              disabled={emptyTrashBusy || emptyTrashConfirm !== EMPTY_TRASH_CONFIRM_WORD}
+            >
+              {emptyTrashBusy ? "Deleting…" : "Empty trash"}
+            </button>
+          </div>
+          {emptyTrashError && <div className="modal-error">{emptyTrashError}</div>}
         </Modal>
       )}
       {teamsTarget && <ProjectTeamsModal project={teamsTarget} onClose={() => setTeamsTarget(null)} />}

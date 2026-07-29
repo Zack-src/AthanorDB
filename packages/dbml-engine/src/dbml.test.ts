@@ -285,6 +285,33 @@ Table memberships {
   assert.match(dbml, /unique/);
 });
 
+test("composite primary key round-trips (both marking a 2+ column pk collapses to one composite index)", () => {
+  const source = `
+Table entreprise_admin {
+  id_entreprise int [pk]
+  id_user int [pk]
+}
+`;
+  const project = toProject(parseDbml(source), "Test");
+  const table = project.tables[0];
+  // @dbml/core normalizes 2+ per-field [pk] markers into a single composite
+  // index rather than leaving each field's own pk flag set — regression test
+  // for the bug where that index's pk flag got dropped on import, silently
+  // turning a composite primary key into an unmarked, invisible index.
+  assert.equal(table.fields.every((f) => !f.pk), true);
+  assert.equal(table.indexes.length, 1);
+  assert.equal(table.indexes[0].pk, true);
+  assert.equal(table.indexes[0].fieldIds.length, 2);
+
+  const dbml = projectToDbml(project);
+  assert.match(dbml, /indexes \{/);
+  assert.match(dbml, /\(id_entreprise, id_user\)/);
+  assert.match(dbml, /pk/);
+
+  const reimported = toProject(parseDbml(dbml), "Test");
+  assert.equal(reimported.tables[0].indexes[0].pk, true);
+});
+
 test("identifiers with special characters get quoted and re-parse cleanly", () => {
   const project: Project = {
     id: "p1",

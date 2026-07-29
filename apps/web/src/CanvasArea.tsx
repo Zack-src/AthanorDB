@@ -8,6 +8,7 @@ import {
   MiniMap,
   PanOnScrollMode,
   SelectionMode,
+  type Connection,
   type NodeChange,
 } from "@xyflow/react";
 import type { Awareness } from "y-protocols/awareness.js";
@@ -70,6 +71,8 @@ export function CanvasArea(props: {
   edges: RefEdgeType[];
   onNodesChange: (changes: NodeChange<AllNodes>[]) => void;
   onEdgesDelete?: (edges: RefEdgeType[]) => void;
+  /** Fires when the user drags a field handle to another field handle — creates a new ref (FK). */
+  onConnect?: (connection: Connection) => void;
   awareness: Awareness | null;
   onAddTable: (position: { x: number; y: number }) => void;
   onAddZone: (position: { x: number; y: number }) => void;
@@ -183,6 +186,7 @@ export function CanvasArea(props: {
         edges={props.edges}
         onNodesChange={props.onNodesChange}
         onEdgesDelete={props.onEdgesDelete}
+        onConnect={props.onConnect}
         onPaneContextMenu={handlePaneContextMenu}
         onNodeMouseEnter={handleNodeMouseEnter}
         onNodeMouseLeave={handleNodeMouseLeave}

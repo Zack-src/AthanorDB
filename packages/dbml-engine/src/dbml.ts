@@ -54,6 +54,11 @@ export function toProject(database: any, projectName = "Untitled"): Project {
       id: String(idx.id ?? `${table.name}.idx`),
       fieldIds: (idx.columns ?? []).map((c: any) => fieldIdByName.get(c.value) ?? String(c.value ?? c)),
       unique: idx.unique ?? false,
+      // @dbml/core normalizes a 2+ column `[pk]` into a composite index and
+      // clears each field's own `pk` (see toProject's `fields` map above) —
+      // without carrying this flag through, a composite primary key silently
+      // becomes a plain, unmarked index and disappears from the UI entirely.
+      pk: idx.pk ?? false,
       name: idx.name ?? undefined,
     }));
 
@@ -243,6 +248,7 @@ export function projectToDbml(project: Project, options?: { includeVisualMetadat
         .filter((n): n is string => Boolean(n));
       if (cols.length === 0) continue;
       const idxSettings: string[] = [];
+      if (idx.pk) idxSettings.push("pk");
       if (idx.unique) idxSettings.push("unique");
       if (idx.name) idxSettings.push(`name: ${quoteNoteText(idx.name)}`);
       const idxSettingsStr = idxSettings.length ? ` [${idxSettings.join(", ")}]` : "";

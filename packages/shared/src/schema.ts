@@ -33,6 +33,8 @@ export interface TableIndex {
   id: Id;
   fieldIds: Id[];
   unique?: boolean;
+  /** Composite primary key — DBML/SQL only represent a 2+ column PK as an index, never as multiple per-field `pk` flags. */
+  pk?: boolean;
   name?: string;
 }
 

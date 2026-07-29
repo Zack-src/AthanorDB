@@ -41,13 +41,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(__dirname, "../../web/dist");
 if (existsSync(webDist)) {
   await app.register(fastifyStatic, { root: webDist });
-  // The SPA has exactly one client-side "route" outside App.tsx's in-memory
-  // view-switching: a freshly loaded (not client-navigated) `/invite/:token`
-  // link, e.g. pasted into a browser. @fastify/static only serves the file
-  // matching the request path, so that path 404s without this explicit
-  // fallback to index.html (Vite's dev server already does this by default,
-  // so dev needs no equivalent).
+  // The SPA has client-side "routes" outside App.tsx's in-memory view-switching:
+  // a freshly loaded (not client-navigated) `/invite/:token` or `/project/:id`
+  // link, e.g. pasted into a browser or opened from a bookmark. @fastify/static
+  // only serves the file matching the request path, so those paths 404 without
+  // this explicit fallback to index.html (Vite's dev server already does this
+  // by default, so dev needs no equivalent).
   app.get("/invite/:token", (_req, reply) => reply.sendFile("index.html"));
+  app.get("/project/:id", (_req, reply) => reply.sendFile("index.html"));
   app.log.info(`serving built web app from ${webDist}`);
 }
 

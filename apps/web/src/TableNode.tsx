@@ -28,8 +28,8 @@ export type TableNodeType = Node<TableNodeData, "table">;
 const DEFAULT_HEADER_COLOR = "#334155";
 const COMMON_TYPES = ["int", "varchar", "text", "boolean", "timestamp", "uuid", "json", "decimal", "bigint"];
 
-function FieldBadge({ field, isForeignKey }: { field: Field; isForeignKey: boolean }) {
-  if (field.pk) return <KeyIcon className="table-node-row-icon table-node-row-icon-pk" />;
+function FieldBadge({ field, isForeignKey, isPk }: { field: Field; isForeignKey: boolean; isPk: boolean }) {
+  if (isPk) return <KeyIcon className="table-node-row-icon table-node-row-icon-pk" />;
   if (field.unique) return <DiamondIcon className="table-node-row-icon table-node-row-icon-unique" />;
   if (isForeignKey) return <LinkIcon className="table-node-row-icon" />;
   return <span className="table-node-row-icon" />;
@@ -421,12 +421,24 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
     return set;
   }, [edges, table.id]);
 
+  // A 2+ column primary key is a composite index, not a per-field `pk` flag
+  // (DBML/SQL have no other way to express it) — merge both so composite-key
+  // columns get the same PK badge/visibility as a plain single-column `pk`.
+  const pkIndexFieldIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const idx of table.indexes) {
+      if (idx.pk) idx.fieldIds.forEach((id) => set.add(id));
+    }
+    return set;
+  }, [table.indexes]);
+  const isPkField = (field: Field) => field.pk || pkIndexFieldIds.has(field.id);
+
   const rows =
     table.detailLevel === "compact"
       ? []
       : table.detailLevel === "full"
         ? table.fields
-        : table.fields.filter((f) => f.pk || refFieldIds.has(f.id));
+        : table.fields.filter((f) => isPkField(f) || refFieldIds.has(f.id));
 
   const commitRename = () => {
     setRenaming(false);
@@ -508,13 +520,13 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
           >
             <Handle type="target" position={Position.Left} id={`${field.id}-left-target`} className="table-row-handle" />
             <Handle type="source" position={Position.Left} id={`${field.id}-left-source`} className="table-row-handle" />
-            <FieldBadge field={field} isForeignKey={refFieldIds.has(field.id)} />
+            <FieldBadge field={field} isForeignKey={refFieldIds.has(field.id)} isPk={isPkField(field)} />
             <span className="table-node-row-name" title={`${field.name} (${field.type})`}>
               {field.name}
             </span>
 
             <div className="table-node-row-badges">
-              {field.pk && <span className="field-kw-badge field-kw-badge-pk" title="Primary Key">PK</span>}
+              {isPkField(field) && <span className="field-kw-badge field-kw-badge-pk" title="Primary Key">PK</span>}
               {field.unique && <span className="field-kw-badge field-kw-badge-unique" title="Unique">UQ</span>}
               {field.notNull && <span className="field-kw-badge field-kw-badge-notnull" title="Not Null">NN</span>}
               {field.increment && <span className="field-kw-badge field-kw-badge-increment" title="Auto Increment">AI</span>}

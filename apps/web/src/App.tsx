@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ReactFlowProvider, MarkerType, applyNodeChanges, type NodeChange } from "@xyflow/react";
+import { ReactFlowProvider, MarkerType, applyNodeChanges, type Connection, type NodeChange } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
   getMetaMap,
@@ -93,13 +93,31 @@ export function App() {
   // path this app treats as a URL rather than in-memory state — read once at
   // mount, matching the app's existing "no router" idiom everywhere else.
   const [inviteToken] = useState(() => location.pathname.match(/^\/invite\/([^/]+)$/)?.[1] ?? null);
+  // Same idea for `/project/:id` — lets a bookmarked or shared link deep-link
+  // straight into a project once the session/permission check clears.
+  const [initialProjectId] = useState(() => location.pathname.match(/^\/project\/([^/]+)$/)?.[1] ?? null);
   const [session, setSession] = useState<Session | null | "loading">("loading");
   const [adminOpen, setAdminOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [serverStatus, setServerStatus] = useState<"checking" | "ok" | "down">("checking");
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [openProject, setOpenProject] = useState<ProjectSummary | null>(null);
+  const [openLinkError, setOpenLinkError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // Keeps the address bar in sync with which project is open, so the URL is
+  // a valid direct link (bookmark, share) back to that project.
+  const openProjectAndNavigate = (p: ProjectSummary) => {
+    setOpenLinkError(null);
+    setOpenProject(p);
+    history.pushState(null, "", `/project/${p.id}`);
+  };
+
+  const closeProject = () => {
+    setOpenProject(null);
+    history.pushState(null, "", "/");
+  };
 
   const refreshProjects = () => {
     fetch("/api/projects")
@@ -122,12 +140,59 @@ export function App() {
     if (session && session !== "loading") refreshProjects();
   }, [session]);
 
+  // Resolves a deep-linked `/project/:id` once we know who's logged in — the
+  // list fetch above races this, so this asks the server directly rather than
+  // waiting on `projects` (and the endpoint enforces permission either way).
+  useEffect(() => {
+    if (!initialProjectId || !session || session === "loading" || openProject) return;
+    fetch(`/api/projects/${initialProjectId}`)
+      .then(async (r) => {
+        if (r.ok) {
+          setOpenProject(await r.json());
+          return;
+        }
+        history.replaceState(null, "", "/");
+        setOpenLinkError(
+          r.status === 404 ? "That project no longer exists." : "You don't have access to that project.",
+        );
+      })
+      .catch(() => history.replaceState(null, "", "/"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProjectId, session]);
+
+  // Mirrors browser back/forward on `/project/:id` <-> `/` to in-memory state.
+  useEffect(() => {
+    const onPopState = () => {
+      const id = location.pathname.match(/^\/project\/([^/]+)$/)?.[1] ?? null;
+      if (!id) {
+        setOpenProject(null);
+        return;
+      }
+      const found = projects.find((p) => p.id === id);
+      if (found) {
+        setOpenProject(found);
+        return;
+      }
+      fetch(`/api/projects/${id}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((p) => setOpenProject(p))
+        .catch(() => setOpenProject(null));
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [projects]);
+
+  useEffect(() => {
+    document.title = openProject ? `${openProject.name} · AthanorDB` : "AthanorDB";
+  }, [openProject]);
+
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setSession(null);
     setOpenProject(null);
     setAdminOpen(false);
     setProjects([]);
+    history.replaceState(null, "", "/");
   };
 
   const updateDisplayName = async (name: string) => {
@@ -142,14 +207,22 @@ export function App() {
   const createProject = async () => {
     const name = newName.trim();
     if (!name) return;
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    if (res.ok) {
-      setNewName("");
-      refreshProjects();
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) {
+        setNewName("");
+        refreshProjects();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setCreateError(data.error ?? `Create failed (${res.status})`);
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Network error");
     }
   };
 
@@ -179,6 +252,13 @@ export function App() {
     }
     const data = await res.json().catch(() => ({}));
     return data.error ?? `Delete failed (${res.status})`;
+  };
+
+  const emptyTrash = async (items: ProjectSummary[]): Promise<string | null> => {
+    const results = await Promise.all(items.map((p) => fetch(`/api/projects/${p.id}`, { method: "DELETE" })));
+    refreshProjects();
+    const failedCount = results.filter((r) => !r.ok).length;
+    return failedCount > 0 ? `${failedCount} project(s) could not be deleted.` : null;
   };
 
   const statusDotClass =
@@ -222,7 +302,7 @@ export function App() {
           user={session.displayName}
           userId={session.id}
           onDisplayNameChange={updateDisplayName}
-          onBack={() => setOpenProject(null)}
+          onBack={closeProject}
         />
       </div>
     );
@@ -256,16 +336,22 @@ export function App() {
         </button>
       </header>
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
+      {openLinkError && <div className="modal-error">{openLinkError}</div>}
       <div style={{ flex: 1, minHeight: 0 }}>
         <ProjectList
           projects={projects}
           newName={newName}
-          onNewNameChange={setNewName}
+          onNewNameChange={(v) => {
+            setNewName(v);
+            setCreateError(null);
+          }}
           onCreate={createProject}
-          onOpen={setOpenProject}
+          createError={createError}
+          onOpen={openProjectAndNavigate}
           onRename={renameProject}
           onSetStatus={setProjectStatus}
           onDeleteForever={deleteProjectForever}
+          onEmptyTrash={emptyTrash}
         />
       </div>
     </div>
@@ -664,6 +750,46 @@ function ProjectEditor(props: {
     [doc],
   );
 
+  // A handle id is either `${fieldId}-left|right-source|target` for a field
+  // row, or `header-left|right-source|target` for the table-header handle
+  // (the only one rendered when the table is collapsed to "compact"). The
+  // header handle has no specific field behind it, so it resolves to the
+  // table's primary key — falling back to its first field — as the ref's
+  // actual endpoint.
+  const resolveConnectionField = useCallback(
+    (tableId: string, handleId: string): string | null => {
+      const table = liveProject?.tables.find((t) => t.id === tableId);
+      if (!table) return null;
+      const fieldId = handleId.replace(/-(left|right)-(source|target)$/, "");
+      if (fieldId !== "header") return fieldId;
+      return (table.fields.find((f) => f.pk) ?? table.fields[0])?.id ?? null;
+    },
+    [liveProject],
+  );
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!doc || !connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) {
+        return;
+      }
+      const fromFieldId = resolveConnectionField(connection.source, connection.sourceHandle);
+      const toFieldId = resolveConnectionField(connection.target, connection.targetHandle);
+      if (!fromFieldId || !toFieldId) return;
+      // A field can't be its own foreign key.
+      if (connection.source === connection.target && fromFieldId === toFieldId) return;
+
+      const refs = getRefsMap(doc);
+      const id = crypto.randomUUID();
+      refs.set(id, {
+        id,
+        from: { tableId: connection.source, fieldId: fromFieldId },
+        to: { tableId: connection.target, fieldId: toFieldId },
+        cardinality: "one-to-many",
+      });
+    },
+    [doc, resolveConnectionField],
+  );
+
   const edges: RefEdgeType[] = useMemo(() => {
     if (!liveProject) return [];
     const tablesById = new Map(liveProject.tables.map((t) => [t.id, t]));
@@ -794,6 +920,15 @@ function ProjectEditor(props: {
     tables.forEach((table, id) => tables.set(id, { ...table, detailLevel: level }));
   };
 
+  // Highlights a detail-level button only when every table currently shares that
+  // level — once tables diverge (e.g. per-table override), no button is "active".
+  const activeDetailLevel: DetailLevel | null = useMemo(() => {
+    const tables = liveProject?.tables ?? [];
+    if (tables.length === 0) return null;
+    const [first, ...rest] = tables;
+    return rest.every((t) => t.detailLevel === first.detailLevel) ? first.detailLevel : null;
+  }, [liveProject]);
+
   const autoLayout = () => {
     if (!doc || !liveProject) return;
     const positions = computeAutoLayout(liveProject.tables, liveProject.refs);
@@ -831,13 +966,25 @@ function ProjectEditor(props: {
         </div>
         <span className="toolbar-divider" />
         <div className="toolbar-group">
-          <button className="btn btn-sm" onClick={() => setAllDetailLevels("compact")} title="Show only key fields">
+          <button
+            className={`btn btn-sm${activeDetailLevel === "compact" ? " btn-active" : ""}`}
+            onClick={() => setAllDetailLevels("compact")}
+            title="Show only key fields"
+          >
             Compact
           </button>
-          <button className="btn btn-sm" onClick={() => setAllDetailLevels("standard")} title="Show primary/foreign keys">
+          <button
+            className={`btn btn-sm${activeDetailLevel === "standard" ? " btn-active" : ""}`}
+            onClick={() => setAllDetailLevels("standard")}
+            title="Show primary/foreign keys"
+          >
             Standard
           </button>
-          <button className="btn btn-sm" onClick={() => setAllDetailLevels("full")} title="Show all fields">
+          <button
+            className={`btn btn-sm${activeDetailLevel === "full" ? " btn-active" : ""}`}
+            onClick={() => setAllDetailLevels("full")}
+            title="Show all fields"
+          >
             Full
           </button>
         </div>
@@ -903,6 +1050,7 @@ function ProjectEditor(props: {
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesDelete={onEdgesDelete}
+            onConnect={onConnect}
             awareness={awareness}
             onAddTable={addTable}
             onAddZone={addZone}
