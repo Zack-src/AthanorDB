@@ -5,6 +5,7 @@ import type { RefCardinality, RoutingPoint } from "@athanordb/shared";
 export interface RefEdgeData {
   cardinality: RefCardinality;
   routingPoints?: RoutingPoint[];
+  highlightLinks?: boolean;
   onRoutingPointsChange: (points: RoutingPoint[] | undefined) => void;
   [key: string]: unknown;
 }
@@ -260,8 +261,12 @@ export function RefEdge({
     };
   }, [selectedPointIndex, points]);
 
-  const strokeWidth = selected ? 3 : 2.25;
-  const dotAnimation = `ref-edge-flow ${selected ? 0.5 : 0.8}s linear infinite`;
+  const highlightLinks = Boolean(data?.highlightLinks);
+  const strokeColor = selected ? style.stroke : highlightLinks ? style.stroke : "#475569";
+  const strokeWidth = selected ? 3 : highlightLinks ? 2.25 : 1.5;
+  const strokeOpacity = selected ? 1 : highlightLinks ? 0.85 : 0.45;
+  const dotAnimation = highlightLinks ? `ref-edge-flow ${selected ? 0.5 : 0.8}s linear infinite` : "none";
+  const showCardinalityBadge = highlightLinks || selected;
 
   return (
     <>
@@ -272,14 +277,14 @@ export function RefEdge({
             d={split.half1}
             fill="none"
             className="ref-edge-flow-path"
-            style={{ stroke: style.stroke, strokeWidth, opacity: selected ? 1 : 0.85, animation: dotAnimation }}
+            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation }}
           />
           <path
             d={split.half2}
             fill="none"
             markerEnd={markerEnd}
             className="ref-edge-flow-path"
-            style={{ stroke: style.stroke, strokeWidth, opacity: selected ? 1 : 0.85, animation: dotAnimation }}
+            style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation }}
           />
         </>
       ) : (
@@ -288,7 +293,7 @@ export function RefEdge({
           fill="none"
           markerEnd={markerEnd}
           className="ref-edge-flow-path"
-          style={{ stroke: style.stroke, strokeWidth, opacity: selected ? 1 : 0.85, animation: dotAnimation }}
+          style={{ stroke: strokeColor, strokeWidth, opacity: strokeOpacity, animation: dotAnimation }}
         />
       )}
       <path
@@ -305,7 +310,7 @@ export function RefEdge({
           <div
             key={i}
             className={`ref-edge-waypoint nodrag nopan${i === selectedPointIndex ? " ref-edge-waypoint-selected" : ""}`}
-            style={{ transform: `translate(-50%, -50%) translate(${p.x}px, ${p.y}px)`, borderColor: style.stroke }}
+            style={{ transform: `translate(-50%, -50%) translate(${p.x}px, ${p.y}px)`, borderColor: strokeColor }}
             onMouseDown={(e) => startDrag(i, e)}
             onClick={(e) => {
               e.stopPropagation();
@@ -315,45 +320,47 @@ export function RefEdge({
             title="Glisser pour déplacer, Suppr pour supprimer, Clic droit pour options"
           />
         ))}
-        <div
-          className="nodrag nopan"
-          style={{
-            position: "absolute",
-            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-            background: "var(--color-surface-raised)",
-            padding: "2px 6px",
-            borderRadius: 999,
-            fontSize: 10,
-            fontWeight: 700,
-            color: style.stroke,
-            border: `1px solid ${style.stroke}`,
-            boxShadow: "var(--shadow-xs)",
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            pointerEvents: "auto",
-          }}
-          onContextMenu={(e) => handleContextMenu(e)}
-        >
-          <span>{style.label}</span>
-          {(hasCustomRouting || points.length !== defaultCorners.length) && (
-            <button
-              onClick={resetRouting}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: style.stroke,
-                cursor: "pointer",
-                padding: "0 2px",
-                fontSize: 11,
-                lineHeight: 1,
-              }}
-              title="Réinitialiser le tracé (points automatiques)"
-            >
-              ↻
-            </button>
-          )}
-        </div>
+        {showCardinalityBadge && (
+          <div
+            className="nodrag nopan"
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              background: "var(--color-surface-raised)",
+              padding: "2px 6px",
+              borderRadius: 999,
+              fontSize: 10,
+              fontWeight: 700,
+              color: strokeColor,
+              border: `1px solid ${strokeColor}`,
+              boxShadow: "var(--shadow-xs)",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              pointerEvents: "auto",
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+          >
+            <span>{style.label}</span>
+            {(hasCustomRouting || points.length !== defaultCorners.length) && (
+              <button
+                onClick={resetRouting}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: strokeColor,
+                  cursor: "pointer",
+                  padding: "0 2px",
+                  fontSize: 11,
+                  lineHeight: 1,
+                }}
+                title="Réinitialiser le tracé (points automatiques)"
+              >
+                ↻
+              </button>
+            )}
+          </div>
+        )}
         {contextMenu && (
           <div
             className="context-menu nodrag nopan"
