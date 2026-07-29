@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type MutableRefObject } from "react";
-import { ReactFlow, useReactFlow, Background, Controls, ControlButton, MiniMap, type NodeChange } from "@xyflow/react";
+import {
+  ReactFlow,
+  useReactFlow,
+  Background,
+  Controls,
+  ControlButton,
+  MiniMap,
+  PanOnScrollMode,
+  SelectionMode,
+  type NodeChange,
+} from "@xyflow/react";
 import type { Awareness } from "y-protocols/awareness.js";
 import { TableNode } from "./TableNode.js";
 import { RefEdge, type RefEdgeType } from "./RefEdge.js";
@@ -170,6 +180,13 @@ export function CanvasArea(props: {
         snapGrid={[10, 10]}
         fitView={!initialViewport}
         defaultViewport={initialViewport ?? undefined}
+        selectionOnDrag
+        selectionMode={SelectionMode.Partial}
+        panOnDrag={[1, 2]}
+        panOnScroll
+        panOnScrollMode={PanOnScrollMode.Free}
+        zoomOnScroll={false}
+        zoomActivationKeyCode="Control"
       >
         <Background color="#33353c" gap={20} />
         <Controls showZoom={false}>
