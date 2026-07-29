@@ -95,7 +95,11 @@ export function connectProject(projectId: string, user: string): ProjectConnecti
     awareness,
     disconnect() {
       awarenessProtocol.removeAwarenessStates(awareness, [doc.clientID], "disconnect");
-      socket.close();
+      if (socket.readyState === WebSocket.CONNECTING) {
+        socket.addEventListener("open", () => socket.close(1000, "Clean disconnect"), { once: true });
+      } else if (socket.readyState === WebSocket.OPEN) {
+        socket.close(1000, "Clean disconnect");
+      }
     },
   };
 }
