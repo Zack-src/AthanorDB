@@ -1,19 +1,5 @@
 import type { Viewport } from "@xyflow/react";
 
-const USER_KEY = "athanordb.user";
-
-export function loadUser(): string {
-  const saved = localStorage.getItem(USER_KEY);
-  if (saved) return saved;
-  const generated = `user-${Math.random().toString(36).slice(2, 8)}`;
-  localStorage.setItem(USER_KEY, generated);
-  return generated;
-}
-
-export function saveUser(user: string): void {
-  localStorage.setItem(USER_KEY, user);
-}
-
 // Canvas text size (accessibility) — a personal display preference, not
 // project data, so it lives in localStorage rather than the shared doc.
 export const FONT_SCALE_KEY = "athanordb.canvasFontScale";
@@ -30,14 +16,15 @@ export function loadFontScale(): number {
 // rather than the project itself, so it's keyed localStorage rather than
 // shared-doc state: two people on the same project shouldn't yank each
 // other's viewport around, and the same person's saved position shouldn't
-// follow them into a different project.
-export function viewportKey(projectId: string, user: string): string {
-  return `athanordb.viewport.${projectId}.${user}`;
+// follow them into a different project. Keyed by the session's stable user
+// id (not the editable display name) so renaming yourself doesn't lose it.
+export function viewportKey(projectId: string, userId: string): string {
+  return `athanordb.viewport.${projectId}.${userId}`;
 }
 
-export function loadViewport(projectId: string, user: string): Viewport | null {
+export function loadViewport(projectId: string, userId: string): Viewport | null {
   try {
-    const raw = localStorage.getItem(viewportKey(projectId, user));
+    const raw = localStorage.getItem(viewportKey(projectId, userId));
     return raw ? (JSON.parse(raw) as Viewport) : null;
   } catch {
     return null;
