@@ -105,11 +105,11 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done
 
 ## Phase 10 — Packaging & deployment
 
-- [ ] Single-command local run (`npm run dev`) — spins up server + web
-- [ ] Production build: server serves built web app, single process, single port
-- [ ] Dockerfile + docker-compose (optional, for LAN multi-user hosting)
-- [ ] Data location config (SQLite file path via env var)
-- [ ] Basic backup/export-all script (dump all projects to DBML files)
+- [x] Single-command local run (`npm run dev`) — root script added (`concurrently -n server,web ...`); previously only the separate `dev:server`/`dev:web` existed. Live-verified: one command brings up both (WS proxy + Vite) and the app loads/works end to end through it.
+- [x] Production build: server serves built web app, single process, single port — turns out this was *already* wired (`@fastify/static` serving `apps/web/dist` when present, from the original scaffold), just never verified or checked off. Live-verified properly this round: `npm run build` then `npm start`, hit one port, created a project, opened the editor, added a table over the live WebSocket — all through that single port.
+- [x] Data location config (SQLite file path via env var) — also already implemented (`ATHANORDB_DB_PATH`, defaulting to `./data/athanordb.sqlite`) from the original scaffold, just undocumented and unchecked. Live-verified pointing it at a custom path actually creates the DB there. Documented in the README along with `PORT`.
+- [x] Dockerfile + docker-compose (optional, for LAN multi-user hosting) — single-stage `Dockerfile` (`node:20-bookworm-slim` + `python3`/`make`/`g++` for `better-sqlite3`'s native addon, since no prebuilt binary is guaranteed for every platform), `docker-compose.yml` publishing `:3001` with a named volume for `/data` so project data outlives the container. Built on the exact `npm run build` / `node apps/server/dist/index.js` flow already verified working directly on the host. **Not verified inside an actual container** — Docker Desktop's daemon wasn't running and the user opted to skip starting it rather than have me spin up a VM this session; flagging so this gets a real `docker compose up` check before relying on it.
+- [x] Basic backup/export-all script (dump all projects to DBML files) — `apps/server/src/backup.ts` (`npm run backup [-- outputDir]` at root, defaults to `./backups/<timestamp>/`, gitignored). Reconstructs each project from its revision log up to the latest revision (the same replay `reconstructDocAtRevision` already does for History-panel restores) rather than trusting the debounced snapshot, which can lag live edits by a couple of seconds; skips projects with no committed revisions instead of erroring. Exports with the visual-metadata sidecar included, same as a manual "Export DBML" would. Live-verified against a real DB: one project with a table backed up correctly (including its position/detail-level in the sidecar comment), a second, untouched project correctly skipped with a clear reason instead of a crash.
 
 ## Phase 11 — Testing & docs
 
