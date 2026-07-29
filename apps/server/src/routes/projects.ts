@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import * as Y from "yjs";
 import { readProjectFromDoc, writeProjectToDoc } from "@athanordb/shared";
 import {
+  applyVisualMetadata,
   mergeProjectIntoExisting,
   parseDbml,
   parseSql,
@@ -177,7 +178,7 @@ export function registerProjectRoutes(app: FastifyInstance): void {
       }
     }
 
-    const parsed = toProject(database, row.name);
+    const parsed = body.dialect ? toProject(database, row.name) : applyVisualMetadata(toProject(database, row.name), body.source);
     const room = getRoom(id);
     // Merge by table/field name rather than a blind overwrite, so reimporting
     // an updated schema keeps existing tables' positions/detail level instead
@@ -190,6 +191,7 @@ export function registerProjectRoutes(app: FastifyInstance): void {
 
   app.get("/api/projects/:id/revisions/:revisionId/export/dbml", async (req, reply) => {
     const { id, revisionId } = req.params as { id: string; revisionId: string };
+    const { visual } = req.query as { visual?: string };
     const row = getProjectRow(id);
     if (!row) {
       reply.code(404);
@@ -201,7 +203,7 @@ export function registerProjectRoutes(app: FastifyInstance): void {
       return { error: "no such revision for this project" };
     }
     const project = readProjectFromDoc(doc, row.id, row.name);
-    return reply.type("text/plain").send(projectToDbml(project));
+    return reply.type("text/plain").send(projectToDbml(project, { includeVisualMetadata: visual === "1" }));
   });
 
   app.get("/api/projects/:id/revisions/:revisionId/export/sql", async (req, reply) => {
@@ -232,6 +234,7 @@ export function registerProjectRoutes(app: FastifyInstance): void {
 
   app.get("/api/projects/:id/export/dbml", async (req, reply) => {
     const { id } = req.params as { id: string };
+    const { visual } = req.query as { visual?: string };
     const row = getProjectRow(id);
     if (!row) {
       reply.code(404);
@@ -239,7 +242,7 @@ export function registerProjectRoutes(app: FastifyInstance): void {
     }
     const room = getRoom(id);
     const project = readProjectFromDoc(room.doc, row.id, row.name);
-    return reply.type("text/plain").send(projectToDbml(project));
+    return reply.type("text/plain").send(projectToDbml(project, { includeVisualMetadata: visual === "1" }));
   });
 
   app.get("/api/projects/:id/export/sql", async (req, reply) => {
