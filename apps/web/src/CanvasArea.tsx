@@ -59,6 +59,7 @@ export function CanvasArea(props: {
   cursorNodes: CursorNodeType[];
   edges: RefEdgeType[];
   onNodesChange: (changes: NodeChange<AllNodes>[]) => void;
+  onEdgesDelete?: (edges: RefEdgeType[]) => void;
   awareness: Awareness | null;
   onAddTable: (position: { x: number; y: number }) => void;
   onAddZone: (position: { x: number; y: number }) => void;
@@ -156,6 +157,7 @@ export function CanvasArea(props: {
         nodes={nodes}
         edges={props.edges}
         onNodesChange={props.onNodesChange}
+        onEdgesDelete={props.onEdgesDelete}
         onPaneContextMenu={handlePaneContextMenu}
         onMoveStart={closeMenu}
         onMoveEnd={(_, viewport) =>
