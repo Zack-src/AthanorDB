@@ -168,6 +168,65 @@ export function FolderIcon({ size = 18, style, className }: IconProps) {
   );
 }
 
+export function PencilIcon({ size = 13, style, className }: IconProps) {
+  return (
+    <svg {...base(size)} style={style} className={className}>
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    </svg>
+  );
+}
+
+export function TrashIcon({ size = 13, style, className }: IconProps) {
+  return (
+    <svg {...base(size)} style={style} className={className}>
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
+export function ArchiveIcon({ size = 13, style, className }: IconProps) {
+  return (
+    <svg {...base(size)} style={style} className={className}>
+      <path d="M21 8v13H3V8" />
+      <path d="M1 3h22v5H1Z" />
+      <path d="M10 12h4" />
+    </svg>
+  );
+}
+
+export function RestoreIcon({ size = 13, style, className }: IconProps) {
+  return (
+    <svg {...base(size)} style={style} className={className}>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+    </svg>
+  );
+}
+
+export function UsersIcon({ size = 14, style, className }: IconProps) {
+  return (
+    <svg {...base(size)} style={style} className={className}>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+export function LogOutIcon({ size = 14, style, className }: IconProps) {
+  return (
+    <svg {...base(size)} style={style} className={className}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
+  );
+}
+
 export function ChevronLeftIcon({ size = 16, style, className }: IconProps) {
   return (
     <svg {...base(size)} style={style} className={className}>
