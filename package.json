@@ -16,6 +16,7 @@
     "build": "npm run build -w packages/shared && npm run build -w packages/dbml-engine && npm run build -w apps/server && npm run build -w apps/web",
     "start": "node apps/server/dist/index.js",
     "backup": "npm run backup -w apps/server --",
+    "bootstrap-admin": "npm run bootstrap-admin -w apps/server --",
     "test": "npm run test --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",
