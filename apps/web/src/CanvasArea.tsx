@@ -65,7 +65,8 @@ export function CanvasArea(props: {
   onAddNote: (position: { x: number; y: number }) => void;
   fontScale: number;
   projectId: string;
-  user: string;
+  /** Session's stable user id — only used to namespace the saved-viewport localStorage key, not an identity/authorship field. */
+  viewportUserId: string;
   exportRef: MutableRefObject<CanvasExportHandle | null>;
 }) {
   const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow();
@@ -73,7 +74,7 @@ export function CanvasArea(props: {
   // Lazy initializer: read once at mount, not on every render — this decides
   // whether the very first render asks React Flow to `fitView` or restore
   // exactly where this user left the canvas last time.
-  const [initialViewport] = useState(() => loadViewport(props.projectId, props.user));
+  const [initialViewport] = useState(() => loadViewport(props.projectId, props.viewportUserId));
 
   // Exposed imperatively (not via props/state) because the Export dialog
   // that triggers this lives outside the ReactFlowProvider this component is
@@ -155,7 +156,9 @@ export function CanvasArea(props: {
         onNodesChange={props.onNodesChange}
         onPaneContextMenu={handlePaneContextMenu}
         onMoveStart={closeMenu}
-        onMoveEnd={(_, viewport) => localStorage.setItem(viewportKey(props.projectId, props.user), JSON.stringify(viewport))}
+        onMoveEnd={(_, viewport) =>
+          localStorage.setItem(viewportKey(props.projectId, props.viewportUserId), JSON.stringify(viewport))
+        }
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         deleteKeyCode={["Backspace", "Delete"]}
@@ -165,7 +168,7 @@ export function CanvasArea(props: {
         defaultViewport={initialViewport ?? undefined}
       >
         <Background color="#33353c" gap={20} />
-        <Controls />
+        <Controls showZoom={false} />
         <MiniMap pannable zoomable bgColor="#1f2024" nodeColor="#4b4d8a" maskColor="rgba(23,24,27,0.75)" />
       </ReactFlow>
       {menu && (
