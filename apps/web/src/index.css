@@ -915,6 +915,25 @@ textarea {
   background-color: var(--color-primary);
 }
 
+.table-row-handle {
+  width: 6px !important;
+  height: 6px !important;
+  background: #9aa3b0 !important;
+  border: 1px solid #1e2024 !important;
+  border-radius: 50% !important;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.table-node:hover .table-row-handle {
+  opacity: 0.8;
+}
+
+.table-node-row:hover .table-row-handle {
+  opacity: 1;
+  transform: scale(1.3);
+}
+
 .panel-expand-tab {
   position: absolute;
   top: 8px;
