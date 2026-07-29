@@ -46,7 +46,7 @@ function DiffSummary(props: { diff: ProjectDiff }) {
  * restore button hitting the existing non-destructive restore endpoint
  * (creates a new revision rather than rewriting history).
  */
-function HistoryPanel(props: { projectId: string; currentProject: Project; user: string; onClose: () => void }) {
+function HistoryPanel(props: { projectId: string; currentProject: Project; onClose: () => void }) {
   const [revisions, setRevisions] = useState<RevisionMeta[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [preview, setPreview] = useState("");
@@ -117,10 +117,7 @@ function HistoryPanel(props: { projectId: string; currentProject: Project; user:
     if (!selectedId) return;
     setRestoring(true);
     try {
-      const res = await fetch(
-        `/api/projects/${props.projectId}/revisions/${selectedId}/restore?user=${encodeURIComponent(props.user)}`,
-        { method: "POST" },
-      );
+      const res = await fetch(`/api/projects/${props.projectId}/revisions/${selectedId}/restore`, { method: "POST" });
       if (res.ok) {
         props.onClose();
       } else {
