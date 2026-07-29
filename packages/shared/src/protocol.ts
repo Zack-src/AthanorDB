@@ -1,22 +1,9 @@
 import type { Id } from "./schema.js";
 
+/** One entry in a project's revision history — the actual shape returned by `GET /api/projects/:id/revisions`. */
 export interface RevisionMeta {
   id: Id;
-  projectId: Id;
   author: string;
+  label: string | null;
   createdAt: string;
-  label?: string;
 }
-
-export type ClientMessage =
-  | { type: "join"; projectId: Id; user: string }
-  | { type: "leave"; projectId: Id }
-  | { type: "cursor"; projectId: Id; position: { x: number; y: number } | null }
-  | { type: "history:list"; projectId: Id }
-  | { type: "history:restore"; projectId: Id; revisionId: Id };
-
-export type ServerMessage =
-  | { type: "presence"; projectId: Id; users: string[] }
-  | { type: "cursor"; projectId: Id; user: string; position: { x: number; y: number } | null }
-  | { type: "history:list"; projectId: Id; revisions: RevisionMeta[] }
-  | { type: "error"; message: string };
