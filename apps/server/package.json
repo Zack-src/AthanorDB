@@ -8,11 +8,13 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "backup": "tsx src/backup.ts"
+    "backup": "tsx src/backup.ts",
+    "bootstrap-admin": "tsx src/bootstrap-admin.ts"
   },
   "dependencies": {
     "@athanordb/dbml-engine": "*",
     "@athanordb/shared": "*",
+    "@fastify/cookie": "^11.1.2",
     "@fastify/static": "^10.1.2",
     "@fastify/websocket": "^11.0.1",
     "better-sqlite3": "^11.3.0",
