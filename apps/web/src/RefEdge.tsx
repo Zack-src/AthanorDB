@@ -67,6 +67,22 @@ function closestSegmentIndex(points: Point[], p: Point): number {
   return best;
 }
 
+function getDefaultCornerPoints(pathString: string, startX: number, startY: number, endX: number, endY: number): Point[] {
+  const points: Point[] = [];
+  const regex = /[L]\s*(-?\d+(?:\.\d+)?)\s*,?\s*(-?\d+(?:\.\d+)?)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(pathString)) !== null) {
+    const x = Math.round(parseFloat(match[1]));
+    const y = Math.round(parseFloat(match[2]));
+    const isStart = Math.abs(x - Math.round(startX)) < 4 && Math.abs(y - Math.round(startY)) < 4;
+    const isEnd = Math.abs(x - Math.round(endX)) < 4 && Math.abs(y - Math.round(endY)) < 4;
+    if (!isStart && !isEnd) {
+      points.push({ x, y });
+    }
+  }
+  return points;
+}
+
 export function RefEdge({
   id,
   sourceX,
@@ -83,19 +99,11 @@ export function RefEdge({
   const style = CARDINALITY_STYLE[data?.cardinality ?? "one-to-many"];
   const isManyToMany = data?.cardinality === "many-to-many";
 
-  // Local drag state so a waypoint moves smoothly under the pointer without
-  // writing to the shared doc on every mousemove — committed once on
-  // pointerup, same pattern as node dragging elsewhere in this app.
   const [dragPoints, setDragPoints] = useState<RoutingPoint[] | null>(null);
   const draggingIndexRef = useRef<number | null>(null);
   const movedRef = useRef(false);
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
-
-  const points = dragPoints ?? data?.routingPoints ?? [];
-  const allPoints: Point[] = useMemo(
-    () => [{ x: sourceX, y: sourceY }, ...points, { x: targetX, y: targetY }],
-    [sourceX, sourceY, points, targetX, targetY],
-  );
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pointIndex?: number } | null>(null);
 
   const [stepPath, stepLabelX, stepLabelY] = getSmoothStepPath({
     sourceX,
@@ -106,13 +114,21 @@ export function RefEdge({
     targetPosition,
     borderRadius: 0,
   });
-  const routed = points.length > 0;
-  const fullPath = routed ? orthogonalPolylinePath(allPoints) : stepPath;
 
-  // Measured off the real rendered path rather than derived analytically —
-  // works the same way whether `fullPath` is the bezier curve or a manual
-  // polyline, and is what makes an accurate "converge on the middle" split
-  // possible for many-to-many without hand-rolling bezier arc-length math.
+  const defaultCorners = useMemo(() => {
+    return getDefaultCornerPoints(stepPath, sourceX, sourceY, targetX, targetY);
+  }, [stepPath, sourceX, sourceY, targetX, targetY]);
+
+  const hasCustomRouting = Boolean(data?.routingPoints && data.routingPoints.length > 0);
+  const points = dragPoints ?? data?.routingPoints ?? defaultCorners;
+
+  const allPoints: Point[] = useMemo(
+    () => [{ x: sourceX, y: sourceY }, ...points, { x: targetX, y: targetY }],
+    [sourceX, sourceY, points, targetX, targetY],
+  );
+
+  const fullPath = orthogonalPolylinePath(allPoints);
+
   const measureRef = useRef<SVGPathElement>(null);
   const [split, setSplit] = useState<{ mid: Point; half1: string; half2: string } | null>(null);
 
@@ -138,11 +154,25 @@ export function RefEdge({
     });
   }, [fullPath]);
 
-  const labelX = routed ? (split?.mid.x ?? stepLabelX) : stepLabelX;
-  const labelY = routed ? (split?.mid.y ?? stepLabelY) : stepLabelY;
+  const labelX = split?.mid.x ?? stepLabelX;
+  const labelY = split?.mid.y ?? stepLabelY;
 
   const commitPoints = (next: RoutingPoint[]) => {
     data?.onRoutingPointsChange(next.length > 0 ? next : undefined);
+  };
+
+  const resetRouting = () => {
+    data?.onRoutingPointsChange(undefined);
+    setDragPoints(null);
+    setSelectedPointIndex(null);
+    setContextMenu(null);
+  };
+
+  const deletePointAt = (index: number) => {
+    const next = points.filter((_, i) => i !== index);
+    commitPoints(next);
+    setSelectedPointIndex(null);
+    setContextMenu(null);
   };
 
   const handlePathDoubleClick = (e: ReactMouseEvent) => {
@@ -172,11 +202,6 @@ export function RefEdge({
       });
     };
     const onUp = () => {
-      // A plain click-to-select is a mousedown immediately followed by
-      // mouseup with no movement in between — committing then would write
-      // an unchanged value to the shared doc, which still triggers a project
-      // update and re-renders this edge, resetting `selectedPointIndex` back
-      // to null before the user ever gets to press Delete.
       setDragPoints((prev) => {
         if (prev && movedRef.current) commitPoints(prev);
         return null;
@@ -188,6 +213,23 @@ export function RefEdge({
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
   };
+
+  const handleContextMenu = (e: ReactMouseEvent, pointIndex?: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, pointIndex });
+  };
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("wheel", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("wheel", close);
+    };
+  }, [contextMenu]);
 
   useEffect(() => {
     if (selectedPointIndex === null) return;
@@ -204,14 +246,8 @@ export function RefEdge({
         return;
       }
       e.preventDefault();
-      const next = (data?.routingPoints ?? []).filter((_, i) => i !== selectedPointIndex);
-      commitPoints(next);
-      setSelectedPointIndex(null);
+      deletePointAt(selectedPointIndex);
     };
-    // `e.stopPropagation()` in the waypoint's own React onClick handler only
-    // stops other *React* handlers from seeing it — the native click still
-    // bubbles to this plain `window` listener regardless, so selecting a
-    // waypoint would otherwise immediately deselect it via this same click.
     const onClickOutside = (e: MouseEvent) => {
       if ((e.target as HTMLElement)?.closest?.(".ref-edge-waypoint")) return;
       setSelectedPointIndex(null);
@@ -222,12 +258,7 @@ export function RefEdge({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("click", onClickOutside);
     };
-    // Only re-attach when the selection itself changes — `data.routingPoints`
-    // is read fresh inside the handler on each keypress rather than added as
-    // a dependency, so typing/moving other waypoints doesn't churn these
-    // window listeners on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPointIndex]);
+  }, [selectedPointIndex, points]);
 
   const strokeWidth = selected ? 3 : 2.25;
   const dotAnimation = `ref-edge-flow ${selected ? 0.5 : 0.8}s linear infinite`;
@@ -260,7 +291,6 @@ export function RefEdge({
           style={{ stroke: style.stroke, strokeWidth, opacity: selected ? 1 : 0.85, animation: dotAnimation }}
         />
       )}
-      {/* Wide, fully transparent path so double-click-to-add-waypoint is easy to hit without needing pixel precision on the thin visible line. */}
       <path
         d={fullPath}
         fill="none"
@@ -268,6 +298,7 @@ export function RefEdge({
         strokeWidth={16}
         style={{ cursor: "copy" }}
         onDoubleClick={handlePathDoubleClick}
+        onContextMenu={(e) => handleContextMenu(e)}
       />
       <EdgeLabelRenderer>
         {points.map((p, i) => (
@@ -280,26 +311,70 @@ export function RefEdge({
               e.stopPropagation();
               setSelectedPointIndex(i);
             }}
-            title="Drag to move, select and press Delete to remove"
+            onContextMenu={(e) => handleContextMenu(e, i)}
+            title="Glisser pour déplacer, Suppr pour supprimer, Clic droit pour options"
           />
         ))}
         <div
+          className="nodrag nopan"
           style={{
             position: "absolute",
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             background: "var(--color-surface-raised)",
-            padding: "1px 6px",
+            padding: "2px 6px",
             borderRadius: 999,
             fontSize: 10,
             fontWeight: 700,
             color: style.stroke,
             border: `1px solid ${style.stroke}`,
             boxShadow: "var(--shadow-xs)",
-            pointerEvents: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            pointerEvents: "auto",
           }}
+          onContextMenu={(e) => handleContextMenu(e)}
         >
-          {style.label}
+          <span>{style.label}</span>
+          {(hasCustomRouting || points.length !== defaultCorners.length) && (
+            <button
+              onClick={resetRouting}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: style.stroke,
+                cursor: "pointer",
+                padding: "0 2px",
+                fontSize: 11,
+                lineHeight: 1,
+              }}
+              title="Réinitialiser le tracé (points automatiques)"
+            >
+              ↻
+            </button>
+          )}
         </div>
+        {contextMenu && (
+          <div
+            className="context-menu nodrag nopan"
+            style={{
+              position: "fixed",
+              left: contextMenu.x,
+              top: contextMenu.y,
+              zIndex: 1000,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {contextMenu.pointIndex !== undefined && (
+              <button className="context-menu-item" onClick={() => deletePointAt(contextMenu.pointIndex!)}>
+                Supprimer ce point
+              </button>
+            )}
+            <button className="context-menu-item" onClick={resetRouting}>
+              Réinitialiser le tracé
+            </button>
+          </div>
+        )}
       </EdgeLabelRenderer>
     </>
   );
