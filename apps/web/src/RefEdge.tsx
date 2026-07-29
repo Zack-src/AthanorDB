@@ -182,7 +182,7 @@ export function RefEdge({
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
         target.isContentEditable ||
-        Boolean(target.closest(".monaco-editor, .nokey, [contenteditable='true']"))
+        Boolean(target.closest(".monaco-editor, .cm-editor, .nokey, [contenteditable='true']"))
       ) {
         return;
       }
