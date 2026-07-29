@@ -577,6 +577,21 @@ function ProjectEditor(props: {
     return () => window.removeEventListener("keydown", handler);
   }, [undoManager, duplicateSelected]);
 
+  const onEdgesDelete = useCallback(
+    (deletedEdges: RefEdgeType[]) => {
+      if (!doc) return;
+      const refs = getRefsMap(doc);
+      doc.transact(() => {
+        for (const edge of deletedEdges) {
+          if (refs.has(edge.id)) {
+            refs.delete(edge.id);
+          }
+        }
+      });
+    },
+    [doc],
+  );
+
   const edges: RefEdgeType[] = useMemo(() => {
     if (!liveProject) return [];
     const tablesById = new Map(liveProject.tables.map((t) => [t.id, t]));
@@ -628,6 +643,11 @@ function ProjectEditor(props: {
             const refs = getRefsMap(doc);
             const current = refs.get(ref.id);
             if (current) refs.set(ref.id, { ...current, routingPoints });
+          },
+          onDeleteRef: () => {
+            if (!doc) return;
+            const refs = getRefsMap(doc);
+            refs.delete(ref.id);
           },
         },
         markerEnd: { type: MarkerType.ArrowClosed, color: CARDINALITY_STYLE[ref.cardinality].stroke },
@@ -796,6 +816,7 @@ function ProjectEditor(props: {
             cursorNodes={cursorNodes}
             edges={edges}
             onNodesChange={onNodesChange}
+            onEdgesDelete={onEdgesDelete}
             awareness={awareness}
             onAddTable={addTable}
             onAddZone={addZone}
