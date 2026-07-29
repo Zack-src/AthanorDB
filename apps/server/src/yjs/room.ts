@@ -13,6 +13,7 @@ const SNAPSHOT_DEBOUNCE_MS = 2000;
 interface ConnMeta {
   author: string;
   awarenessClientIds: Set<number>;
+  canWrite: boolean;
 }
 
 /**
@@ -25,6 +26,7 @@ export class Room {
   readonly awareness: awarenessProtocol.Awareness;
   private readonly conns = new Map<WebSocket, ConnMeta>();
   private snapshotTimer: NodeJS.Timeout | null = null;
+  private destroyed = false;
 
   constructor(
     private readonly projectId: string,
@@ -36,6 +38,11 @@ export class Room {
     this.awareness = new awarenessProtocol.Awareness(this.doc);
 
     this.doc.on("update", (update: Uint8Array, origin: unknown) => {
+      // A project deleted out from under a still-open room (e.g. someone has
+      // it open in another tab while it's deleted from the list) must not
+      // resurrect rows for an id that no longer exists in `projects` —
+      // `destroy()` flips this before closing every connection.
+      if (this.destroyed) return;
       // Two kinds of origin reach here: a WebSocket (a live, connected edit —
       // resolve through `conns`) or a plain string (a REST-triggered write
       // like import/restore, which has no connection — the route already
@@ -79,8 +86,8 @@ export class Room {
     );
   }
 
-  join(conn: WebSocket, author: string): void {
-    this.conns.set(conn, { author, awarenessClientIds: new Set() });
+  join(conn: WebSocket, author: string, canWrite: boolean): void {
+    this.conns.set(conn, { author, awarenessClientIds: new Set(), canWrite });
 
     const syncEncoder = encoding.createEncoder();
     encoding.writeVarUint(syncEncoder, MESSAGE_SYNC);
@@ -104,11 +111,31 @@ export class Room {
     const messageType = decoding.readVarUint(decoder);
 
     if (messageType === MESSAGE_SYNC) {
+      // A view-only connection must not be able to mutate the doc via a
+      // hand-crafted WS frame that bypasses this app's own client entirely —
+      // that has to be enforced here, not just hidden in the UI. Unlike
+      // `syncProtocol.readSyncMessage` (which dispatches generically and
+      // would apply an update regardless of permission), decode the inner
+      // sync sub-message type ourselves first so syncStep2/update can be
+      // dropped for a read-only connection while syncStep1 (a state-vector
+      // request — read-only by construction, just produces a reply) stays
+      // allowed either way.
+      const canWrite = this.conns.get(conn)?.canWrite ?? false;
+      const innerType = decoding.readVarUint(decoder);
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, MESSAGE_SYNC);
-      syncProtocol.readSyncMessage(decoder, encoder, this.doc, conn);
-      if (encoding.length(encoder) > 1) conn.send(encoding.toUint8Array(encoder));
+      if (innerType === syncProtocol.messageYjsSyncStep1) {
+        syncProtocol.readSyncStep1(decoder, encoder, this.doc);
+        if (encoding.length(encoder) > 1) conn.send(encoding.toUint8Array(encoder));
+      } else if (canWrite) {
+        if (innerType === syncProtocol.messageYjsSyncStep2) {
+          syncProtocol.readSyncStep2(decoder, this.doc, conn);
+        } else if (innerType === syncProtocol.messageYjsUpdate) {
+          syncProtocol.readUpdate(decoder, this.doc, conn);
+        }
+      }
     } else if (messageType === MESSAGE_AWARENESS) {
+      // Cursor/presence stays allowed regardless of write access — cosmetic, not a schema mutation.
       awarenessProtocol.applyAwarenessUpdate(this.awareness, decoding.readVarUint8Array(decoder), conn);
     }
   }
@@ -124,10 +151,12 @@ export class Room {
         clearTimeout(this.snapshotTimer);
         this.snapshotTimer = null;
       }
-      try {
-        saveSnapshot(this.projectId, this.doc);
-      } catch (err) {
-        console.error(`[room ${this.projectId}] failed to save snapshot:`, err);
+      if (!this.destroyed) {
+        try {
+          saveSnapshot(this.projectId, this.doc);
+        } catch (err) {
+          console.error(`[room ${this.projectId}] failed to save snapshot:`, err);
+        }
       }
       // Evict once nobody's connected — every project ever opened otherwise
       // keeps a live Y.Doc + Awareness resident in memory for the process's
@@ -139,6 +168,22 @@ export class Room {
 
   presence(): string[] {
     return Array.from(this.conns.values()).map((meta) => meta.author);
+  }
+
+  /**
+   * Deleting a project must stop this room from writing anything else back
+   * to SQLite (the rows it would write to no longer exist) and disconnect
+   * anyone still viewing it. Each socket's own `close` handler still calls
+   * `leave()` afterwards — the `destroyed` flag above makes that a no-op
+   * instead of resurrecting a snapshot/revision row for the deleted project.
+   */
+  destroy(): void {
+    this.destroyed = true;
+    if (this.snapshotTimer) {
+      clearTimeout(this.snapshotTimer);
+      this.snapshotTimer = null;
+    }
+    this.conns.forEach((_meta, conn) => conn.close());
   }
 
   private broadcast(message: Uint8Array, exclude?: WebSocket): void {
@@ -169,4 +214,12 @@ export function getRoom(projectId: string): Room {
     rooms.set(projectId, room);
   }
   return room;
+}
+
+/** Tears down a project's in-memory room (if one is live) ahead of deleting its rows — see `Room.destroy`. */
+export function closeRoom(projectId: string): void {
+  const room = rooms.get(projectId);
+  if (!room) return;
+  room.destroy();
+  rooms.delete(projectId);
 }
