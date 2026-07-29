@@ -39,18 +39,42 @@ export function getStickyNotesMap(doc: Y.Doc): Y.Map<StickyNote> {
   return doc.getMap(STICKY_NOTES_KEY);
 }
 
+// Yjs never dedupes a `.set()`/`.delete()` by value equality — it always
+// records a new op, fires the doc's "update" event and (per `room.ts`)
+// appends a revision row, even when the value written is identical to what
+// was already there. `writeProjectToDoc` is called wholesale on every DBML
+// panel auto-sync (every ~600ms pause while editing, whether or not anything
+// actually changed) plus every revision/snapshot restore, so without this
+// check the revision log fills up with no-op entries. Values here are plain
+// JSON (opaque to Yjs, per the module doc comment above), and both sides
+// come from the same object-literal construction sites, so key order is
+// stable and a JSON.stringify comparison is a safe, dependency-free
+// stand-in for deep equality.
+function jsonEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function setIfChanged<T>(map: Y.Map<T>, key: string, value: T): void {
+  if (!jsonEqual(map.get(key), value)) map.set(key, value);
+}
+
 function replaceMapContents<T>(map: Y.Map<T>, entries: [Id, T][]): void {
-  Array.from(map.keys()).forEach((key) => map.delete(key));
-  entries.forEach(([id, value]) => map.set(id, value));
+  const nextIds = new Set(entries.map(([id]) => id));
+  for (const key of Array.from(map.keys())) {
+    if (!nextIds.has(key)) map.delete(key);
+  }
+  for (const [id, value] of entries) {
+    setIfChanged(map, id, value);
+  }
 }
 
 /** Overwrite the doc's project content in a single transaction. */
 export function writeProjectToDoc(doc: Y.Doc, project: Project): void {
   doc.transact(() => {
     const meta = getMetaMap(doc);
-    meta.set("id", project.id);
-    meta.set("name", project.name);
-    if (project.paletteColors) meta.set("paletteColors", project.paletteColors);
+    setIfChanged(meta, "id", project.id);
+    setIfChanged(meta, "name", project.name);
+    if (project.paletteColors) setIfChanged(meta, "paletteColors", project.paletteColors);
 
     replaceMapContents(
       getTablesMap(doc),
