@@ -934,6 +934,16 @@ textarea {
   transform: scale(1.3);
 }
 
+.table-node-row-linked {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border-left: 2.5px solid #6366f1 !important;
+}
+
+.table-node-row-linked .table-node-row-name {
+  color: #a5b4fc !important;
+  font-weight: 600;
+}
+
 .panel-expand-tab {
   position: absolute;
   top: 8px;
