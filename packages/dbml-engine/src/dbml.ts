@@ -1,5 +1,5 @@
 import { Parser, ModelExporter } from "@dbml/core";
-import type { Project, Ref, Table } from "@athanordb/shared";
+import type { DetailLevel, Position, Project, Ref, Size, StickyNote, Table, VisualStyle, Zone } from "@athanordb/shared";
 
 export type SqlDialect = "postgres" | "mysql" | "mssql";
 
@@ -154,12 +154,71 @@ function fieldNameById(tables: Table[], tableId: string, fieldId: string): { tab
 }
 
 /**
- * Convert AthanorDB's internal `Project` shape into DBML source text.
- * Round-trips table/field/index/ref/enum structure; visual metadata
- * (position, color, detail level, zones, sticky notes) has no DBML
- * equivalent yet and is dropped here.
+ * DBML has no native field for position/color/detail-level/zones/sticky
+ * notes, so a plain `.dbml` export/reimport round trip used to drop all of
+ * it. `mergeProjectIntoExisting` already covers the common case (reimporting
+ * into the *same* project preserves its live state by matching names) but
+ * that's no help for a standalone file leaving the app and coming back into
+ * a fresh project later, or being handed to someone else's instance.
+ *
+ * This sidecar is a single trailing `//`-comment line holding a compact JSON
+ * blob, keyed by table *name* (the same stable key `mergeProjectIntoExisting`
+ * already uses) — a plain comment, so any DBML/SQL tool that doesn't know
+ * about it just ignores it. Opt-in on export (see `projectToDbml`'s
+ * `includeVisualMetadata` option) so the live-editing DBML panel's text stays
+ * clean; always attempted on import, since a pasted-in file either has it or
+ * it's a harmless no-op.
  */
-export function projectToDbml(project: Project): string {
+const VISUAL_METADATA_MARKER = "// athanordb:visual ";
+
+interface VisualMetadataV1 {
+  tables?: Record<string, { position?: Position; size?: Size; style?: VisualStyle; detailLevel?: DetailLevel }>;
+  zones?: Zone[];
+  stickyNotes?: StickyNote[];
+}
+
+/** Reads the sidecar visual-metadata blob out of raw DBML source, if present. Never throws — a missing or malformed marker just yields no metadata. */
+export function extractVisualMetadata(source: string): VisualMetadataV1 | null {
+  const line = source.split("\n").find((l) => l.startsWith(VISUAL_METADATA_MARKER));
+  if (!line) return null;
+  try {
+    return JSON.parse(line.slice(VISUAL_METADATA_MARKER.length));
+  } catch {
+    return null;
+  }
+}
+
+/** Overlays sidecar visual metadata (if any) from raw DBML source onto an already-parsed `Project`, matching tables by name. */
+export function applyVisualMetadata(project: Project, source: string): Project {
+  const meta = extractVisualMetadata(source);
+  if (!meta) return project;
+  const tables = project.tables.map((table) => {
+    const m = meta.tables?.[table.name];
+    if (!m) return table;
+    return {
+      ...table,
+      position: m.position ?? table.position,
+      size: m.size ?? table.size,
+      style: m.style ?? table.style,
+      detailLevel: m.detailLevel ?? table.detailLevel,
+    };
+  });
+  return {
+    ...project,
+    tables,
+    zones: meta.zones ?? project.zones,
+    stickyNotes: meta.stickyNotes ?? project.stickyNotes,
+  };
+}
+
+/**
+ * Convert AthanorDB's internal `Project` shape into DBML source text.
+ * Round-trips table/field/index/ref/enum structure natively; pass
+ * `includeVisualMetadata` to also append the sidecar comment (see above) so
+ * position/color/detail-level/zones/sticky notes survive a save-to-file and
+ * later reimport too.
+ */
+export function projectToDbml(project: Project, options?: { includeVisualMetadata?: boolean }): string {
   const parts: string[] = [];
 
   for (const table of project.tables) {
@@ -216,6 +275,20 @@ export function projectToDbml(project: Project): string {
     parts.push(`${prefix} ${from.table}.${from.field} ${symbol} ${to.table}.${to.field}`);
   }
 
+  if (options?.includeVisualMetadata) {
+    const metadata: VisualMetadataV1 = {
+      tables: Object.fromEntries(
+        project.tables.map((table) => [
+          table.name,
+          { position: table.position, size: table.size, style: table.style, detailLevel: table.detailLevel },
+        ]),
+      ),
+      zones: project.zones,
+      stickyNotes: project.stickyNotes,
+    };
+    parts.push(`${VISUAL_METADATA_MARKER}${JSON.stringify(metadata)}`);
+  }
+
   return parts.join("\n\n") + "\n";
 }
 
@@ -228,13 +301,17 @@ export function projectToSql(project: Project, dialect: SqlDialect): string {
 
 /**
  * Reconciles a freshly-parsed `incoming` project (from `toProject`, whose ids
- * are just @dbml/core's parse-order assignments) into `existing`, matching
- * tables/fields by *name* so ids, positions, sizes, styles, and detail level
- * survive a reimport instead of resetting every time. New tables/fields get
- * fresh positions; tables/fields no longer present in `incoming` are dropped.
- * Zones and sticky notes have no DBML equivalent, so they pass through from
- * `existing` untouched. Refs and enums carry no visual metadata (yet) and are
- * taken wholesale from `incoming`, remapped onto the merged ids.
+ * are just @dbml/core's parse-order assignments, optionally already overlaid
+ * with sidecar visual metadata via `applyVisualMetadata`) into `existing`,
+ * matching tables/fields by *name* so ids survive a reimport instead of
+ * resetting every time. `existing`'s own position/size/style/detail-level win
+ * when a table already has them; `incoming`'s (grid-default, or sidecar-
+ * restored if the source carried one) only fill in for genuinely new tables.
+ * Same idea for zones/sticky notes, which have no per-table anchor to match
+ * by: `existing`'s take priority, `incoming`'s (sidecar-only, never
+ * DBML-native) only seed a project that doesn't have any yet. Refs and enums
+ * carry no visual metadata (yet) and are taken wholesale from `incoming`,
+ * remapped onto the merged ids.
  */
 export function mergeProjectIntoExisting(existing: Project, incoming: Project): Project {
   const existingTablesByName = new Map(existing.tables.map((t) => [t.name, t]));
@@ -262,9 +339,9 @@ export function mergeProjectIntoExisting(existing: Project, incoming: Project): 
       id: finalId,
       fields,
       indexes,
-      position: prev?.position ?? { x: (index % 6) * 320, y: Math.floor(index / 6) * 400 },
-      size: prev?.size,
-      style: prev?.style,
+      position: prev?.position ?? table.position ?? { x: (index % 6) * 320, y: Math.floor(index / 6) * 400 },
+      size: prev?.size ?? table.size,
+      style: prev?.style ?? table.style,
       detailLevel: prev?.detailLevel ?? table.detailLevel,
     };
   });
@@ -287,7 +364,7 @@ export function mergeProjectIntoExisting(existing: Project, incoming: Project): 
     tables,
     refs,
     enums: incoming.enums,
-    zones: existing.zones,
-    stickyNotes: existing.stickyNotes,
+    zones: existing.zones.length > 0 ? existing.zones : incoming.zones,
+    stickyNotes: existing.stickyNotes.length > 0 ? existing.stickyNotes : incoming.stickyNotes,
   };
 }

@@ -1,7 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Project } from "@athanordb/shared";
-import { parseDbml, toProject, projectToDbml, projectToSql, mergeProjectIntoExisting } from "./dbml.js";
+import {
+  parseDbml,
+  toProject,
+  projectToDbml,
+  projectToSql,
+  mergeProjectIntoExisting,
+  extractVisualMetadata,
+  applyVisualMetadata,
+} from "./dbml.js";
 
 test("DBML -> Project round-trips table/field constraints", () => {
   const source = `Table users {
@@ -298,4 +306,94 @@ test("identifiers with special characters get quoted and re-parse cleanly", () =
 
   const reparsed = toProject(parseDbml(dbml), "Test");
   assert.equal(reparsed.tables[0].name, "user profile");
+});
+
+function projectWithVisuals(): Project {
+  return {
+    id: "p1",
+    name: "Test",
+    tables: [
+      {
+        id: "t1",
+        name: "users",
+        fields: [{ id: "f1", name: "id", type: "int", pk: true }],
+        indexes: [],
+        position: { x: 250, y: 60 },
+        size: { width: 300, height: 150 },
+        style: { color: "#123456", borderColor: "#abcdef" },
+        detailLevel: "full",
+      },
+    ],
+    refs: [],
+    enums: [],
+    zones: [{ id: "z1", label: "Core", position: { x: 0, y: 0 }, size: { width: 400, height: 300 } }],
+    stickyNotes: [{ id: "s1", text: "remember to index this", position: { x: 10, y: 10 }, size: { width: 120, height: 80 } }],
+  };
+}
+
+test("projectToDbml only appends the visual-metadata sidecar when opted in, and it doesn't break re-parsing", () => {
+  const project = projectWithVisuals();
+
+  const plain = projectToDbml(project);
+  assert.doesNotMatch(plain, /athanordb:visual/, "sidecar absent by default (keeps the live DBML panel clean)");
+
+  const withVisuals = projectToDbml(project, { includeVisualMetadata: true });
+  assert.match(withVisuals, /\/\/ athanordb:visual /);
+
+  // A plain `//` comment — @dbml/core should just ignore it like any other tool would.
+  const reparsed = toProject(parseDbml(withVisuals), "Test");
+  assert.equal(reparsed.tables[0].name, "users");
+});
+
+test("extractVisualMetadata reads the sidecar back out, and is nullish-safe for source without one", () => {
+  const dbml = projectToDbml(projectWithVisuals(), { includeVisualMetadata: true });
+  const meta = extractVisualMetadata(dbml);
+  assert.ok(meta);
+  assert.deepEqual(meta!.tables?.users?.position, { x: 250, y: 60 });
+  assert.equal(meta!.zones?.length, 1);
+  assert.equal(meta!.stickyNotes?.length, 1);
+
+  assert.equal(extractVisualMetadata("Table users { id int [pk] }"), null, "no marker line -> null, not a throw");
+  assert.equal(extractVisualMetadata("// athanordb:visual not-json"), null, "malformed JSON -> null, not a throw");
+});
+
+test("applyVisualMetadata restores position/style/detailLevel/zones/stickyNotes onto a freshly re-parsed project", () => {
+  const original = projectWithVisuals();
+  const dbml = projectToDbml(original, { includeVisualMetadata: true });
+
+  // Simulates a `.dbml` file round-tripping through a brand-new project: no
+  // `existing` state to merge against, just the plain parse plus the sidecar.
+  const reparsed = toProject(parseDbml(dbml), "Test");
+  const restored = applyVisualMetadata(reparsed, dbml);
+
+  const users = restored.tables.find((t) => t.name === "users")!;
+  assert.deepEqual(users.position, original.tables[0].position);
+  assert.deepEqual(users.size, original.tables[0].size);
+  assert.deepEqual(users.style, original.tables[0].style);
+  assert.equal(users.detailLevel, "full");
+  assert.deepEqual(restored.zones, original.zones);
+  assert.deepEqual(restored.stickyNotes, original.stickyNotes);
+});
+
+test("mergeProjectIntoExisting: sidecar-restored position/zones seed a brand-new project, but never override an existing one's", () => {
+  const original = projectWithVisuals();
+  const dbml = projectToDbml(original, { includeVisualMetadata: true });
+  const incoming = applyVisualMetadata(toProject(parseDbml(dbml), "Test"), dbml);
+
+  const empty: Project = { id: "p1", name: "Test", tables: [], refs: [], enums: [], zones: [], stickyNotes: [] };
+  const seeded = mergeProjectIntoExisting(empty, incoming);
+  const seededUsers = seeded.tables.find((t) => t.name === "users")!;
+  assert.deepEqual(seededUsers.position, original.tables[0].position, "brand-new project picks up the sidecar position");
+  assert.deepEqual(seeded.zones, original.zones, "brand-new project picks up sidecar zones");
+  assert.deepEqual(seeded.stickyNotes, original.stickyNotes, "brand-new project picks up sidecar sticky notes");
+
+  const existingWithOwnState: Project = {
+    ...empty,
+    tables: [{ ...original.tables[0], position: { x: 999, y: 999 }, style: undefined }],
+    zones: [{ id: "existing-zone", label: "Mine", position: { x: 1, y: 1 }, size: { width: 10, height: 10 } }],
+  };
+  const merged = mergeProjectIntoExisting(existingWithOwnState, incoming);
+  const mergedUsers = merged.tables.find((t) => t.name === "users")!;
+  assert.deepEqual(mergedUsers.position, { x: 999, y: 999 }, "existing project's own position wins over the sidecar's");
+  assert.deepEqual(merged.zones, existingWithOwnState.zones, "existing project's own zones win over the sidecar's");
 });
