@@ -11,18 +11,21 @@ export default defineConfig({
         target: "ws://localhost:3001",
         ws: true,
         configure: (proxy) => {
-          proxy.on("error", (err) => {
-            if ((err as any)?.code === "ECONNABORTED" || (err as any)?.code === "ECONNRESET") {
-              return;
-            }
-          });
-          proxy.on("proxyReqWs", (_proxyReq, _req, socket) => {
-            socket.on("error", (err) => {
-              if ((err as any)?.code === "ECONNABORTED" || (err as any)?.code === "ECONNRESET") {
-                return;
+          const origEmit = proxy.emit;
+          proxy.emit = function (event: string | symbol, ...args: unknown[]) {
+            if (event === "error") {
+              const err = args[0] as { code?: string; message?: string } | undefined;
+              if (
+                err?.code === "ECONNABORTED" ||
+                err?.code === "ECONNRESET" ||
+                err?.message?.includes("ECONNABORTED") ||
+                err?.message?.includes("ECONNRESET")
+              ) {
+                return false;
               }
-            });
-          });
+            }
+            return origEmit.apply(this, [event, ...args] as [string | symbol, ...unknown[]]);
+          };
         },
       },
     },
