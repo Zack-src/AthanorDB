@@ -60,8 +60,10 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
         style={{ background: table.style?.color ?? DEFAULT_HEADER_COLOR }}
         onDoubleClick={() => setRenaming(true)}
       >
-        <Handle type="target" position={Position.Left} />
-        <Handle type="source" position={Position.Right} />
+        <Handle type="target" position={Position.Left} id="header-left-target" style={{ opacity: 0 }} />
+        <Handle type="source" position={Position.Left} id="header-left-source" style={{ opacity: 0 }} />
+        <Handle type="target" position={Position.Right} id="header-right-target" style={{ opacity: 0 }} />
+        <Handle type="source" position={Position.Right} id="header-right-source" style={{ opacity: 0 }} />
         {renaming ? (
           <input
             autoFocus
@@ -104,7 +106,8 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
         const fieldComments = table.comments?.filter((c) => c.fieldId === field.id) ?? [];
         return (
           <div key={field.id} className="table-node-row">
-            <Handle type="target" position={Position.Left} id={field.id} style={{ background: "#9aa3b0" }} />
+            <Handle type="target" position={Position.Left} id={`${field.id}-left-target`} className="table-row-handle" />
+            <Handle type="source" position={Position.Left} id={`${field.id}-left-source`} className="table-row-handle" />
             <FieldBadge field={field} isForeignKey={refFieldIds.has(field.id)} />
             <span className="table-node-row-name">{field.name}</span>
             {table.detailLevel === "full" && <span className="table-node-row-type">{field.type}</span>}
@@ -116,7 +119,8 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
               triggerClassName={`table-node-row-comment${table.detailLevel !== "full" ? " table-node-row-comment-auto" : ""}`}
               title={`Comments on ${field.name}`}
             />
-            <Handle type="source" position={Position.Right} id={field.id} style={{ background: "#9aa3b0" }} />
+            <Handle type="target" position={Position.Right} id={`${field.id}-right-target`} className="table-row-handle" />
+            <Handle type="source" position={Position.Right} id={`${field.id}-right-source`} className="table-row-handle" />
           </div>
         );
       })}
