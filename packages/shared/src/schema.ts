@@ -117,4 +117,6 @@ export interface Project {
   enums: EnumDef[];
   zones: Zone[];
   stickyNotes: StickyNote[];
+  /** Custom preset swatch grid for this project's color pickers. Unset -> caller falls back to a built-in default palette. */
+  paletteColors?: string[];
 }

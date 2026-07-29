@@ -102,6 +102,17 @@ test("survives cross-doc sync via encodeStateAsUpdate/applyUpdate (the actual pe
   assert.equal(restored.refs[0].from.tableId, "t2");
 });
 
+test("paletteColors round-trips through meta, and stays unset (not defaulted) when the project never customized one", () => {
+  const doc = new Y.Doc();
+  writeProjectToDoc(doc, sampleProject());
+  const withoutPalette = readProjectFromDoc(doc, "fallback-id");
+  assert.equal(withoutPalette.paletteColors, undefined, "callers fall back to a default palette themselves, not this layer");
+
+  writeProjectToDoc(doc, { ...sampleProject(), paletteColors: ["#111111", "#222222"] });
+  const withPalette = readProjectFromDoc(doc, "fallback-id");
+  assert.deepEqual(withPalette.paletteColors, ["#111111", "#222222"]);
+});
+
 test("readProjectFromDoc uses fallback id/name only when meta hasn't been set", () => {
   const doc = new Y.Doc();
   const empty = readProjectFromDoc(doc, "fallback-id", "fallback-name");

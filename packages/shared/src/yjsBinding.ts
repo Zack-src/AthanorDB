@@ -50,6 +50,7 @@ export function writeProjectToDoc(doc: Y.Doc, project: Project): void {
     const meta = getMetaMap(doc);
     meta.set("id", project.id);
     meta.set("name", project.name);
+    if (project.paletteColors) meta.set("paletteColors", project.paletteColors);
 
     replaceMapContents(
       getTablesMap(doc),
@@ -80,6 +81,7 @@ export function readProjectFromDoc(doc: Y.Doc, fallbackId: string, fallbackName 
   return {
     id: (meta.get("id") as string | undefined) ?? fallbackId,
     name: (meta.get("name") as string | undefined) ?? fallbackName,
+    paletteColors: meta.get("paletteColors") as string[] | undefined,
     tables: Array.from(getTablesMap(doc).values()),
     refs: Array.from(getRefsMap(doc).values()),
     enums: Array.from(getEnumsMap(doc).values()),
