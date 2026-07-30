@@ -34,6 +34,28 @@ function distToSegmentSq(p: Point, a: Point, b: Point): number {
   return (p.x - projX) ** 2 + (p.y - projY) ** 2;
 }
 
+/**
+ * Drops any point that's collinear (within `tolerance` px) with its
+ * surviving neighbors — dragging a waypoint back onto the straight line
+ * between its neighbors (most commonly: onto the straight source→target
+ * line, once every point's been dragged into alignment) makes it dead
+ * weight, and left in place it renders as a waypoint dot sitting right on
+ * top of the cardinality label instead of routing anything.
+ */
+export function simplifyRoutingPoints(points: Point[], source: Point, target: Point, tolerance = 2): Point[] {
+  const chain = [source, ...points, target];
+  const kept: Point[] = [];
+  for (let i = 1; i < chain.length - 1; i++) {
+    const prev = kept.length > 0 ? kept[kept.length - 1] : chain[0];
+    const curr = chain[i];
+    const next = chain[i + 1];
+    if (Math.sqrt(distToSegmentSq(curr, prev, next)) > tolerance) {
+      kept.push(curr);
+    }
+  }
+  return kept;
+}
+
 /** Index of the segment (between `points[i]` and `points[i+1]`) closest to `p` — used to decide where a newly double-clicked waypoint gets inserted. */
 export function closestSegmentIndex(points: Point[], p: Point): number {
   let best = 0;

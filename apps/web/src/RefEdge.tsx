@@ -12,6 +12,11 @@ export interface RefEdgeData {
   highlightLinks?: boolean;
   /** True when this edge touches the currently hovered or selected table — highlights it independently of the global `highlightLinks` toggle. */
   connectedHighlight?: boolean;
+  /** Custom highlight color override — falls back to the cardinality's default color when unset. */
+  color?: string;
+  palette: string[];
+  onPaletteChange: (palette: string[]) => void;
+  onColorChange: (color: string | undefined) => void;
   onRoutingPointsChange: (points: RoutingPoint[] | undefined) => void;
   onDeleteRef?: () => void;
   [key: string]: unknown;
@@ -55,7 +60,7 @@ export function RefEdge({
   const labelY = split?.mid.y ?? routing.stepLabelY;
 
   const isHighlighted = Boolean(data?.highlightLinks || data?.connectedHighlight || selected);
-  const strokeColor = isHighlighted ? style.stroke : "#475569";
+  const strokeColor = isHighlighted ? data?.color ?? style.stroke : "#475569";
   // Path coordinates live in flow space, which React Flow scales down via a
   // CSS transform as the user zooms out — so a fixed stroke-width/dasharray
   // shrinks to sub-pixel and disappears at low zoom. Dividing by zoom here
@@ -115,12 +120,15 @@ export function RefEdge({
           onSelect={routing.setSelectedPointIndex}
           onContextMenu={routing.openContextMenu}
         />
-        {showCardinalityBadge && (
+        {showCardinalityBadge && data && (
           <CardinalityBadge
             x={labelX}
             y={labelY}
             label={style.label}
             color={strokeColor}
+            palette={data.palette}
+            onPaletteChange={data.onPaletteChange}
+            onColorChange={data.onColorChange}
             showReset={routing.hasCustomRouting || routing.points.length !== routing.defaultCorners.length}
             onReset={routing.resetRouting}
             onContextMenu={(e) => routing.openContextMenu(e)}
@@ -131,6 +139,7 @@ export function RefEdge({
             menu={routing.contextMenu}
             onDeletePoint={routing.deletePointAt}
             onResetRouting={routing.resetRouting}
+            onResetColor={data?.color ? () => data.onColorChange(undefined) : undefined}
             onDeleteRef={
               data?.onDeleteRef
                 ? () => {

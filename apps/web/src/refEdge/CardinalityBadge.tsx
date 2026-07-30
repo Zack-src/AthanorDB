@@ -1,11 +1,15 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
+import { ColorSwatchPicker } from "../ColorSwatchPicker.js";
 
-/** The floating "1–n"/etc. pill at an edge's midpoint; shows a reset-routing button once the path has been customized. */
+/** The floating "1–n"/etc. pill at an edge's midpoint — lets you pick a custom highlight color and shows a reset-routing button once the path has been customized. */
 export function CardinalityBadge(props: {
   x: number;
   y: number;
   label: string;
   color: string;
+  palette: string[];
+  onPaletteChange: (palette: string[]) => void;
+  onColorChange: (color: string | undefined) => void;
   showReset: boolean;
   onReset: () => void;
   onContextMenu: (e: ReactMouseEvent) => void;
@@ -17,7 +21,7 @@ export function CardinalityBadge(props: {
         position: "absolute",
         transform: `translate(-50%, -50%) translate(${props.x}px, ${props.y}px)`,
         background: "var(--color-surface-raised)",
-        padding: "2px 6px",
+        padding: "2px 5px",
         borderRadius: 999,
         fontSize: 10,
         fontWeight: 700,
@@ -32,6 +36,14 @@ export function CardinalityBadge(props: {
       onContextMenu={props.onContextMenu}
     >
       <span>{props.label}</span>
+      <ColorSwatchPicker
+        value={props.color}
+        onChange={props.onColorChange}
+        palette={props.palette}
+        onPaletteChange={props.onPaletteChange}
+        triggerClassName="ref-edge-badge-swatch"
+        tooltip="Couleur du lien"
+      />
       {props.showReset && (
         <button
           onClick={props.onReset}

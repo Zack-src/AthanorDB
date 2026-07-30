@@ -5,6 +5,7 @@ export function EdgeContextMenu(props: {
   menu: EdgeContextMenuState;
   onDeletePoint: (index: number) => void;
   onResetRouting: () => void;
+  onResetColor?: () => void;
   onDeleteRef?: () => void;
 }) {
   return (
@@ -21,6 +22,11 @@ export function EdgeContextMenu(props: {
       <button className="context-menu-item" onClick={props.onResetRouting}>
         Réinitialiser le tracé
       </button>
+      {props.onResetColor && (
+        <button className="context-menu-item" onClick={props.onResetColor}>
+          Réinitialiser la couleur
+        </button>
+      )}
       {props.onDeleteRef && (
         <button className="context-menu-item" style={{ color: "#ef4444" }} onClick={props.onDeleteRef}>
           Supprimer la relation

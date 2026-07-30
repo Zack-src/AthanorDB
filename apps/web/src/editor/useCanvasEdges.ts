@@ -13,6 +13,8 @@ export function useCanvasEdges(
   nodes: CanvasNode[],
   highlightLinks: boolean,
   hoveredTableId: string | null,
+  palette: string[],
+  onPaletteChange: (palette: string[]) => void,
 ): RefEdgeType[] {
   return useMemo(() => {
     if (!liveProject) return [];
@@ -74,6 +76,15 @@ export function useCanvasEdges(
           routingPoints: ref.routingPoints,
           highlightLinks,
           connectedHighlight,
+          color: ref.style?.color,
+          palette,
+          onPaletteChange,
+          onColorChange: (color: string | undefined) => {
+            if (!doc) return;
+            const refs = getRefsMap(doc);
+            const current = refs.get(ref.id);
+            if (current) refs.set(ref.id, { ...current, style: { ...current.style, color } });
+          },
           onRoutingPointsChange: (routingPoints: RoutingPoint[] | undefined) => {
             if (!doc) return;
             const refs = getRefsMap(doc);
@@ -86,8 +97,8 @@ export function useCanvasEdges(
             refs.delete(ref.id);
           },
         },
-        markerEnd: { type: MarkerType.ArrowClosed, color: CARDINALITY_STYLE[ref.cardinality].stroke },
+        markerEnd: { type: MarkerType.ArrowClosed, color: ref.style?.color ?? CARDINALITY_STYLE[ref.cardinality].stroke },
       };
     });
-  }, [liveProject, doc, nodes, highlightLinks, hoveredTableId]);
+  }, [liveProject, doc, nodes, highlightLinks, hoveredTableId, palette, onPaletteChange]);
 }

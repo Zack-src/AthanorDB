@@ -1,7 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
 import type { Comment, Field } from "@athanordb/shared";
 import { CommentThread } from "../CommentThread.js";
-import { AsteriskIcon, DiamondIcon, IncrementIcon, KeyIcon, NoteIcon } from "../Icons.js";
+import { AsteriskIcon, DiamondIcon, IncrementIcon, NoteIcon } from "../Icons.js";
 import { FieldBadge } from "./FieldBadge.js";
 import { FieldEditorPopover } from "./FieldEditorPopover.js";
 
@@ -51,29 +51,24 @@ export function TableNodeRow({
       <FieldBadge field={field} isForeignKey={isForeignKey} isPk={isPk} />
 
       <div className="table-node-row-badges">
-        {isPk && (
-          <span className="field-kw-badge field-kw-badge-pk" data-tooltip="Primary Key">
-            <KeyIcon size={11} />
-          </span>
-        )}
         {field.unique && (
           <span className="field-kw-badge field-kw-badge-unique" data-tooltip="Unique">
-            <DiamondIcon size={11} />
+            <DiamondIcon size={16} />
           </span>
         )}
         {field.notNull && (
           <span className="field-kw-badge field-kw-badge-notnull" data-tooltip="Not Null">
-            <AsteriskIcon size={11} />
+            <AsteriskIcon size={16} />
           </span>
         )}
         {field.increment && (
           <span className="field-kw-badge field-kw-badge-increment" data-tooltip="Auto Increment">
-            <IncrementIcon size={11} />
+            <IncrementIcon size={16} />
           </span>
         )}
         {field.note && (
           <span className="field-kw-badge field-kw-badge-note" data-tooltip={field.note}>
-            <NoteIcon size={11} />
+            <NoteIcon size={16} />
           </span>
         )}
       </div>

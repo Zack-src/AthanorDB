@@ -35,7 +35,11 @@ function SyncStatusPill({ status }: { status: SyncStatus }) {
 
 const DBML_SYNC_DEBOUNCE_MS = 600;
 
-function CodeMirrorEditor(props: { value: string; onChange: (val: string) => void }) {
+function CodeMirrorEditor(props: {
+  value: string;
+  onChange: (val: string) => void;
+  scrollToTable?: { tableName: string; requestId: number } | null;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(props.onChange);
@@ -117,6 +121,28 @@ function CodeMirrorEditor(props: { value: string; onChange: (val: string) => voi
     }
   }, [props.value]);
 
+  const lastHandledRequestRef = useRef<number | null>(null);
+  useEffect(() => {
+    const view = viewRef.current;
+    const request = props.scrollToTable;
+    if (!view || !request || lastHandledRequestRef.current === request.requestId) return;
+    const escaped = request.tableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const tableLineRe = new RegExp(`^\\s*Table\\s+(?:"?[\\w]+"?\\s*\\.\\s*)?"?${escaped}"?\\s*\\{`, "i");
+    const doc = view.state.doc;
+    for (let i = 1; i <= doc.lines; i++) {
+      const line = doc.line(i);
+      if (tableLineRe.test(line.text)) {
+        view.dispatch({
+          selection: { anchor: line.from, head: line.to },
+          effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+        });
+        view.focus();
+        lastHandledRequestRef.current = request.requestId;
+        break;
+      }
+    }
+  }, [props.scrollToTable, props.value]);
+
   return (
     <div
       ref={containerRef}
@@ -133,7 +159,12 @@ const DEFAULT_PANEL_WIDTH = 440;
 const MIN_PANEL_WIDTH = 280;
 const STORAGE_KEY_WIDTH = "athanordb_dbml_panel_width";
 
-function DbmlPanel(props: { project: Project; projectId: string; onClose: () => void }) {
+function DbmlPanel(props: {
+  project: Project;
+  projectId: string;
+  onClose: () => void;
+  scrollToTable?: { tableName: string; requestId: number } | null;
+}) {
   const { project, projectId } = props;
   const [text, setText] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -286,7 +317,7 @@ function DbmlPanel(props: { project: Project; projectId: string; onClose: () => 
         </Button>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
-        <CodeMirrorEditor value={text} onChange={handleChange} />
+        <CodeMirrorEditor value={text} onChange={handleChange} scrollToTable={props.scrollToTable} />
       </div>
       {error && (
         <div className="m-2">

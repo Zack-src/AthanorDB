@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
+import { getMetaMap } from "@athanordb/shared";
 import { validateProject, type ValidationIssue } from "@athanordb/dbml-engine";
 import { useProjectDoc } from "./useProjectDoc.js";
 import { useAwarenessStates } from "./useAwarenessStates.js";
@@ -44,6 +45,11 @@ export function ProjectEditor(props: {
   const { fontScale, adjustFontScale } = useCanvasFontScale();
   const [highlightLinks, setHighlightLinks] = useState(loadHighlightLinks);
   const [hoveredTableId, setHoveredTableId] = useState<string | null>(null);
+  const [dbmlScrollRequest, setDbmlScrollRequest] = useState<{ tableName: string; requestId: number } | null>(null);
+  const goToDbml = useCallback((tableName: string) => {
+    setDbmlOpen(true);
+    setDbmlScrollRequest((prev) => ({ tableName, requestId: (prev?.requestId ?? 0) + 1 }));
+  }, []);
 
   const handleHighlightLinksChange = (val: boolean) => {
     setHighlightLinks(val);
@@ -79,8 +85,16 @@ export function ProjectEditor(props: {
     return map;
   }, [liveProject]);
 
-  const { nodes, onNodesChange } = useCanvasNodes(liveProject, doc, refFieldIdsByTable, user, highlightLinks);
-  const edges = useCanvasEdges(liveProject, doc, nodes, highlightLinks, hoveredTableId);
+  const palette = liveProject?.paletteColors ?? DEFAULT_PALETTE;
+  const onPaletteChange = useCallback(
+    (next: string[]) => {
+      if (doc) getMetaMap(doc).set("paletteColors", next);
+    },
+    [doc],
+  );
+
+  const { nodes, onNodesChange } = useCanvasNodes(liveProject, doc, refFieldIdsByTable, user, highlightLinks, goToDbml);
+  const edges = useCanvasEdges(liveProject, doc, nodes, highlightLinks, hoveredTableId, palette, onPaletteChange);
 
   const {
     addTable,
@@ -95,8 +109,6 @@ export function ProjectEditor(props: {
     onEdgesDelete,
     onConnect,
   } = useProjectMutations(liveProject, doc, nodes);
-
-  const palette = liveProject?.paletteColors ?? DEFAULT_PALETTE;
 
   useEditorKeyboardShortcuts(undoManager, duplicateSelected);
 
@@ -129,7 +141,12 @@ export function ProjectEditor(props: {
       <div className="canvas-container">
         {dbmlOpen && liveProject ? (
           <Suspense fallback={<div className="side-panel" style={{ width: 440 }} />}>
-            <DbmlPanel project={liveProject} projectId={project.id} onClose={() => setDbmlOpen(false)} />
+            <DbmlPanel
+              project={liveProject}
+              projectId={project.id}
+              onClose={() => setDbmlOpen(false)}
+              scrollToTable={dbmlScrollRequest}
+            />
           </Suspense>
         ) : (
           <button className="panel-expand-tab" onClick={() => setDbmlOpen(true)} data-tooltip="Show DBML editor" data-tooltip-pos="bottom">

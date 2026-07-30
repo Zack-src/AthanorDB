@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from "react";
 import { Handle, Position, useEdges, type Node, type NodeProps } from "@xyflow/react";
 import type { Field, Table } from "@athanordb/shared";
 import { CommentThread } from "./CommentThread.js";
-import { PlusIcon } from "./Icons.js";
+import { CodeIcon, PlusIcon } from "./Icons.js";
 import { DEFAULT_HEADER_COLOR, TableSettingsPopover } from "./table/TableSettingsPopover.js";
 import { TableNodeRow } from "./table/TableNodeRow.js";
 
@@ -15,6 +15,7 @@ export interface TableNodeData {
   palette: string[];
   onPaletteChange: (palette: string[]) => void;
   onRename: (name: string) => void;
+  onGoToDbml?: () => void;
   onStyleChange: (color: string | undefined, borderColor: string | undefined) => void;
   onAddComment: (text: string, fieldId?: string) => void;
   onDeleteComment: (commentId: string) => void;
@@ -112,6 +113,19 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
         )}
 
         <div className="table-node-header-actions">
+          {data.onGoToDbml && (
+            <button
+              type="button"
+              className="table-node-header-btn nodrag"
+              onClick={(e) => {
+                e.stopPropagation();
+                data.onGoToDbml?.();
+              }}
+              data-tooltip="Go to DBML"
+            >
+              <CodeIcon size={13} />
+            </button>
+          )}
           <CommentThread
             comments={tableComments}
             currentUser={data.currentUser}

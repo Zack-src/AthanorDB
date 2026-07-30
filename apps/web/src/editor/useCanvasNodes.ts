@@ -28,7 +28,14 @@ import { DEFAULT_TABLE_HEIGHT, DEFAULT_TABLE_WIDTH } from "../refGeometry.js";
  * once a drag commits, so without a local copy the node would visually snap
  * around mid-drag.
  */
-export function useCanvasNodes(liveProject: Project | null, doc: Y.Doc | null, refFieldIdsByTable: Map<string, Set<string>>, user: string, highlightLinks: boolean) {
+export function useCanvasNodes(
+  liveProject: Project | null,
+  doc: Y.Doc | null,
+  refFieldIdsByTable: Map<string, Set<string>>,
+  user: string,
+  highlightLinks: boolean,
+  onGoToDbml: (tableName: string) => void,
+) {
   const builtNodes: CanvasNode[] = useMemo(() => {
     if (!liveProject || !doc) return [];
 
@@ -76,6 +83,7 @@ export function useCanvasNodes(liveProject: Project | null, doc: Y.Doc | null, r
         currentUser: user,
         palette,
         onPaletteChange,
+        onGoToDbml: () => onGoToDbml(table.name),
         onRename: (name: string) => {
           const tables = getTablesMap(doc);
           const current = tables.get(table.id);
@@ -163,7 +171,7 @@ export function useCanvasNodes(liveProject: Project | null, doc: Y.Doc | null, r
     }));
 
     return [...zoneNodes, ...tableNodes, ...stickyNodes];
-  }, [liveProject, doc, refFieldIdsByTable, user, highlightLinks]);
+  }, [liveProject, doc, refFieldIdsByTable, user, highlightLinks, onGoToDbml]);
 
   // Resetting during render (React's documented pattern for "adjust state
   // when an input changes") rather than in an effect avoids an extra render pass.

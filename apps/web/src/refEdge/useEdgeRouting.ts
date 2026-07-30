@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { getSmoothStepPath, useReactFlow, type Position } from "@xyflow/react";
 import type { RoutingPoint } from "@athanordb/shared";
-import { closestSegmentIndex, getDefaultCornerPoints, orthogonalPolylinePath, type Point } from "./pathMath.js";
+import { closestSegmentIndex, getDefaultCornerPoints, orthogonalPolylinePath, simplifyRoutingPoints, type Point } from "./pathMath.js";
 
 export interface EdgeContextMenuState {
   x: number;
@@ -47,7 +47,12 @@ export function useEdgeRouting(params: {
   });
 
   const defaultCorners = useMemo(() => {
-    return getDefaultCornerPoints(stepPath, sourceX, sourceY, targetX, targetY);
+    const raw = getDefaultCornerPoints(stepPath, sourceX, sourceY, targetX, targetY);
+    // The auto-computed corners (not something the user dragged) can still
+    // include a near-straight jog when source/target are only a few px off
+    // axis — same collinearity cleanup as commitPoints, applied here so it
+    // also covers waypoints nobody ever touched, not just custom routing.
+    return simplifyRoutingPoints(raw, { x: sourceX, y: sourceY }, { x: targetX, y: targetY });
   }, [stepPath, sourceX, sourceY, targetX, targetY]);
 
   const hasCustomRouting = Boolean(routingPoints && routingPoints.length > 0);
@@ -61,7 +66,8 @@ export function useEdgeRouting(params: {
   const fullPath = orthogonalPolylinePath(allPoints);
 
   const commitPoints = (next: RoutingPoint[]) => {
-    onRoutingPointsChange(next.length > 0 ? next : undefined);
+    const simplified = simplifyRoutingPoints(next, { x: sourceX, y: sourceY }, { x: targetX, y: targetY });
+    onRoutingPointsChange(simplified.length > 0 ? simplified : undefined);
   };
 
   const resetRouting = () => {

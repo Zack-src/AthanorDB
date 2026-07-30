@@ -659,6 +659,7 @@ input:-webkit-autofill:focus {
 }
 
 .table-node-header:hover .table-node-header-actions,
+.table-node-selected .table-node-header-actions,
 .table-node-header-actions:has(.has-comments),
 .table-node-header-actions:has(.has-open-popover) {
   opacity: 1;
@@ -720,9 +721,15 @@ input:-webkit-autofill:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 13px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
   color: var(--color-text-muted);
+}
+
+.table-node-row-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .table-node-row-icon-pk {
@@ -750,44 +757,32 @@ input:-webkit-autofill:focus {
 .field-kw-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.5px 3px;
-  border-radius: var(--radius-sm);
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
   line-height: 1;
 }
 
 .field-kw-badge svg {
-  width: calc(11px * var(--canvas-font-scale));
-  height: calc(11px * var(--canvas-font-scale));
-}
-
-.field-kw-badge-pk {
-  background: rgba(251, 191, 36, 0.18);
-  color: var(--color-warning);
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  width: 16px;
+  height: 16px;
 }
 
 .field-kw-badge-unique {
-  background: rgba(99, 102, 241, 0.18);
   color: var(--color-primary-hover);
-  border: 1px solid rgba(99, 102, 241, 0.4);
 }
 
 .field-kw-badge-notnull {
-  background: rgba(56, 189, 248, 0.16);
   color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.35);
 }
 
 .field-kw-badge-increment {
-  background: rgba(52, 211, 153, 0.16);
   color: var(--color-success);
-  border: 1px solid rgba(52, 211, 153, 0.35);
 }
 
 .field-kw-badge-note {
-  background: rgba(148, 163, 184, 0.16);
   color: var(--color-text-secondary);
-  border: 1px solid rgba(148, 163, 184, 0.35);
   cursor: help;
 }
 
@@ -1173,6 +1168,17 @@ input:-webkit-autofill:focus {
   border-radius: 50%;
   background: none;
   cursor: pointer;
+}
+
+.ref-edge-badge-swatch {
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 /* ---------- Ref edge (dotted, animated in the direction of cardinality) ---------- */
