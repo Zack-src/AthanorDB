@@ -32,23 +32,23 @@ function StickyNoteNodeImpl({ data, selected }: NodeProps<StickyNoteNodeType>) {
         }
       />
       <div
-        className="sticky-node"
+        className="box-border flex h-full w-full flex-col gap-1.5 rounded-sm p-2 shadow-sm"
         style={{ background: color, border: `1px solid ${note.style?.borderColor ?? "#ca8a04"}` }}
       >
         <textarea
-          className="nodrag sticky-node-textarea"
+          className="nodrag flex-1 resize-none border-0 bg-transparent text-[calc(12.5px_*_var(--canvas-font-scale))] leading-[1.4] text-text-onlight outline-none placeholder:text-[rgba(35,37,42,0.45)]"
           value={note.text}
           onChange={(e) => data.onTextChange(e.target.value)}
           placeholder="Note…"
           maxLength={2000}
         />
-        <div className="sticky-node-footer">
+        <div className="flex justify-end">
           <ColorSwatchPicker
             value={color}
             onChange={data.onColorChange}
             palette={data.palette}
             onPaletteChange={data.onPaletteChange}
-            triggerClassName="sticky-node-swatch"
+            triggerClassName="h-[15px] w-[15px] cursor-pointer rounded-full border-[1.5px] border-black/15 bg-none p-0"
             tooltip="Note color"
           />
         </div>

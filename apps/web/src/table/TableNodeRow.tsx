@@ -4,6 +4,17 @@ import { CommentThread } from "../CommentThread.js";
 import { AsteriskIcon, DiamondIcon, IncrementIcon, NoteIcon } from "../Icons.js";
 import { FieldBadge } from "./FieldBadge.js";
 import { FieldEditorPopover } from "./FieldEditorPopover.js";
+import {
+  KW_BADGE_CLASS,
+  KW_BADGE_COLOR,
+  ROW_ACTIONS_CLASS,
+  ROW_ACTION_BTN_CLASS,
+  ROW_BADGES_CLASS,
+  ROW_CLASS,
+  ROW_TYPE_CLASS,
+  rowNameClass,
+  rowStateClass,
+} from "./tableStyles.js";
 
 export interface TableNodeRowProps {
   field: Field;
@@ -37,7 +48,7 @@ export function TableNodeRow({
 }: TableNodeRowProps) {
   return (
     <div
-      className={`table-node-row${isLinked ? " table-node-row-linked" : ""}${isSelected ? " table-node-row-selected" : ""}`}
+      className={`table-node-row ${ROW_CLASS} ${rowStateClass(isLinked, isSelected)}`}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
@@ -45,52 +56,52 @@ export function TableNodeRow({
     >
       <Handle type="target" position={Position.Left} id={`${field.id}-left-target`} className="table-row-handle" />
       <Handle type="source" position={Position.Left} id={`${field.id}-left-source`} className="table-row-handle" />
-      <span className="table-node-row-name" data-tooltip={`${field.name} (${field.type})`}>
+      <span className={rowNameClass(isLinked)} data-tooltip={`${field.name} (${field.type})`}>
         {field.name}
       </span>
       <FieldBadge field={field} isForeignKey={isForeignKey} isPk={isPk} />
 
-      <div className="table-node-row-badges">
+      <div className={ROW_BADGES_CLASS}>
         {field.unique && (
-          <span className="field-kw-badge field-kw-badge-unique" data-tooltip="Unique">
+          <span className={`${KW_BADGE_CLASS} ${KW_BADGE_COLOR.unique}`} data-tooltip="Unique">
             <DiamondIcon size={16} />
           </span>
         )}
         {field.notNull && (
-          <span className="field-kw-badge field-kw-badge-notnull" data-tooltip="Not Null">
+          <span className={`${KW_BADGE_CLASS} ${KW_BADGE_COLOR.notNull}`} data-tooltip="Not Null">
             <AsteriskIcon size={16} />
           </span>
         )}
         {field.increment && (
-          <span className="field-kw-badge field-kw-badge-increment" data-tooltip="Auto Increment">
+          <span className={`${KW_BADGE_CLASS} ${KW_BADGE_COLOR.increment}`} data-tooltip="Auto Increment">
             <IncrementIcon size={16} />
           </span>
         )}
         {field.note && (
-          <span className="field-kw-badge field-kw-badge-note" data-tooltip={field.note}>
+          <span className={`${KW_BADGE_CLASS} ${KW_BADGE_COLOR.note}`} data-tooltip={field.note}>
             <NoteIcon size={16} />
           </span>
         )}
       </div>
 
-      <div className="table-node-row-actions">
+      <div className={ROW_ACTIONS_CLASS}>
         <FieldEditorPopover
           field={field}
           onUpdateField={onUpdateField}
           onDeleteField={onDeleteField}
-          triggerClassName="table-node-row-action-btn table-node-row-edit"
+          triggerClassName={ROW_ACTION_BTN_CLASS}
         />
         <CommentThread
           comments={comments}
           currentUser={currentUser}
           onAdd={onAddComment}
           onDelete={onDeleteComment}
-          triggerClassName="table-node-row-action-btn table-node-row-comment"
+          triggerClassName={ROW_ACTION_BTN_CLASS}
           tooltip={`Comments on ${field.name}`}
         />
       </div>
 
-      <span className="table-node-row-type">{field.type}</span>
+      <span className={ROW_TYPE_CLASS}>{field.type}</span>
 
       <Handle type="target" position={Position.Right} id={`${field.id}-right-target`} className="table-row-handle" />
       <Handle type="source" position={Position.Right} id={`${field.id}-right-source`} className="table-row-handle" />

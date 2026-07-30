@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Comment } from "@athanordb/shared";
 import { CloseIcon, CommentIcon } from "./Icons.js";
+import { Button } from "./ui/Button.js";
 
 /** "2026-07-29T09:31:59.868Z" -> "2026-07-29 09:31:59" — matches the plain UTC-timestamp style the revision history list already uses. */
 function formatTimestamp(iso: string): string {
@@ -77,32 +78,46 @@ export function CommentThread(props: {
         data-tooltip={props.tooltip ?? "Comments"}
       >
         <CommentIcon size={12} />
-        {props.comments.length > 0 && <span className="comment-count">{props.comments.length}</span>}
+        {props.comments.length > 0 && (
+          <span className="text-[10px] font-bold leading-none">{props.comments.length}</span>
+        )}
       </button>
       {open &&
         popoverPos &&
         createPortal(
-          <div ref={popoverRef} className="comment-popover nodrag" style={{ left: popoverPos.x, top: popoverPos.y }}>
-            <div className="comment-list">
-              {props.comments.length === 0 && <div className="comment-empty">No comments yet.</div>}
+          <div
+            ref={popoverRef}
+            className="fixed z-[2000] flex w-[260px] animate-modal-in flex-col rounded-md border border-border bg-surface-raised shadow-lg nodrag"
+            style={{ left: popoverPos.x, top: popoverPos.y }}
+          >
+            <div className="flex max-h-[220px] flex-col gap-1.5 overflow-y-auto p-2">
+              {props.comments.length === 0 && (
+                <div className="px-0.5 py-1.5 text-xs text-text-muted">No comments yet.</div>
+              )}
               {props.comments.map((c) => (
-                <div key={c.id} className="comment-item">
-                  <div className="comment-item-head">
-                    <span className="comment-item-author">{c.author}</span>
-                    <span className="comment-item-time">{formatTimestamp(c.createdAt)}</span>
+                <div key={c.id} className="rounded-sm bg-surface p-1.5">
+                  <div className="mb-0.5 flex items-baseline gap-1.5">
+                    <span className="text-[11.5px] font-bold text-text">{c.author}</span>
+                    <span className="flex-1 text-[10.5px] text-text-muted">{formatTimestamp(c.createdAt)}</span>
                     {c.author === props.currentUser && (
-                      <button className="comment-item-delete" onClick={() => props.onDelete(c.id)} data-tooltip="Delete comment">
+                      <button
+                        className="shrink-0 p-0 text-text-muted hover:text-danger"
+                        onClick={() => props.onDelete(c.id)}
+                        data-tooltip="Delete comment"
+                      >
                         <CloseIcon size={11} />
                       </button>
                     )}
                   </div>
-                  <div className="comment-item-text">{c.text}</div>
+                  <div className="whitespace-pre-wrap break-words text-[12.5px] leading-[1.4] text-text-secondary">
+                    {c.text}
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="comment-compose">
+            <div className="flex gap-1.5 border-t border-border p-2">
               <textarea
-                className="comment-compose-input"
+                className="min-h-[44px] flex-1 resize-none rounded-sm border border-border bg-surface px-2 py-1.5 text-[12.5px] text-text focus:border-primary focus:outline-none"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Add a comment…"
@@ -111,9 +126,9 @@ export function CommentThread(props: {
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit();
                 }}
               />
-              <button className="btn btn-primary btn-sm" onClick={submit} disabled={!draft.trim()}>
+              <Button variant="primary" size="sm" onClick={submit} disabled={!draft.trim()}>
                 Post
-              </button>
+              </Button>
             </div>
           </div>,
           document.body,

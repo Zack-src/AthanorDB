@@ -99,7 +99,10 @@ export function GlobalTooltip() {
   }
 
   return createPortal(
-    <div className={`gtooltip gtooltip-${pos}`} style={style}>
+    <div
+      className="pointer-events-none z-[3000] w-max max-w-[240px] whitespace-pre-line rounded-sm border border-border-strong bg-surface-raised px-2 py-[5px] text-center font-sans text-[11px] font-medium leading-[1.35] text-text shadow-md"
+      style={style}
+    >
       {text}
     </div>,
     document.body,

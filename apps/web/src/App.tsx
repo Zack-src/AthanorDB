@@ -21,7 +21,7 @@ export function App() {
 
   if (routing.inviteToken) {
     return (
-      <div className="app-shell">
+      <div className="flex h-screen w-screen flex-col bg-bg">
         <AcceptInvite
           token={routing.inviteToken}
           onLoggedIn={(s) => {
@@ -34,12 +34,12 @@ export function App() {
   }
 
   if (session === "loading") {
-    return <div className="app-shell" />;
+    return <div className="flex h-screen w-screen flex-col bg-bg" />;
   }
 
   if (!session) {
     return (
-      <div className="app-shell">
+      <div className="flex h-screen w-screen flex-col bg-bg">
         <Login onLoggedIn={setSession} />
       </div>
     );
@@ -51,7 +51,7 @@ export function App() {
 
   if (routing.openProject) {
     return (
-      <div className="app-shell">
+      <div className="flex h-screen w-screen flex-col bg-bg">
         <ProjectEditor
           project={routing.openProject}
           user={session.displayName}

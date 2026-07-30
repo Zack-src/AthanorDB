@@ -20,6 +20,8 @@ import { StickyNoteNode } from "./StickyNoteNode.js";
 import { CursorNode, type CursorNodeType } from "./CursorNode.js";
 import { FrameIcon, LinkIcon, MinimapIcon, NoteIcon, TableIcon } from "./Icons.js";
 import { loadShowMinimap, loadViewport, saveShowMinimap, viewportKey } from "./localPrefs.js";
+import { CONTEXT_MENU_CLASS, CONTEXT_MENU_ITEM_CLASS } from "./ui/contextMenuStyles.js";
+import { SWATCH_CELL_CLASS } from "./ColorSwatchPicker.js";
 import type { AllNodes, CanvasExportHandle, CanvasNode } from "./types.js";
 
 const nodeTypes = { table: TableNode, zone: ZoneNode, sticky: StickyNoteNode, cursor: CursorNode };
@@ -42,14 +44,14 @@ interface CanvasContextMenuState {
 function SelectionColorToolbar(props: { count: number; palette: string[]; onPick: (color: string) => void }) {
   return (
     <Panel position="top-center" className="nodrag nopan">
-      <div className="selection-color-toolbar">
-        <span className="selection-color-toolbar-label">{props.count} tables selected</span>
-        <div className="color-popover-grid selection-color-toolbar-grid">
+      <div className="flex flex-col items-start gap-1.5 rounded-md border border-border bg-surface-raised px-2.5 py-2 shadow-lg">
+        <span className="whitespace-nowrap text-xs text-text-muted">{props.count} tables selected</span>
+        <div className="grid grid-cols-10 gap-1.5">
           {props.palette.map((c) => (
             <button
               key={c}
               type="button"
-              className="color-swatch-cell"
+              className={SWATCH_CELL_CLASS}
               style={{ background: c }}
               onClick={() => props.onPick(c)}
               data-tooltip={c}
@@ -75,14 +77,14 @@ function CanvasContextMenu(props: {
     props.onClose();
   };
   return (
-    <div className="context-menu" style={{ left: menu.screenX, top: menu.screenY }} onClick={(e) => e.stopPropagation()}>
-      <button className="context-menu-item" onClick={() => run(props.onAddTable)}>
+    <div className={CONTEXT_MENU_CLASS} style={{ left: menu.screenX, top: menu.screenY }} onClick={(e) => e.stopPropagation()}>
+      <button className={CONTEXT_MENU_ITEM_CLASS} onClick={() => run(props.onAddTable)}>
         <TableIcon size={14} /> Add table
       </button>
-      <button className="context-menu-item" onClick={() => run(props.onAddZone)}>
+      <button className={CONTEXT_MENU_ITEM_CLASS} onClick={() => run(props.onAddZone)}>
         <FrameIcon size={14} /> Add zone
       </button>
-      <button className="context-menu-item" onClick={() => run(props.onAddNote)}>
+      <button className={CONTEXT_MENU_ITEM_CLASS} onClick={() => run(props.onAddNote)}>
         <NoteIcon size={14} /> Add sticky note
       </button>
     </div>
@@ -228,7 +230,7 @@ export function CanvasArea(props: {
 
   return (
     <div
-      className="canvas-pane"
+      className="min-w-0 flex-1 bg-bg-canvas"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       style={{ "--canvas-font-scale": props.fontScale } as CSSProperties}

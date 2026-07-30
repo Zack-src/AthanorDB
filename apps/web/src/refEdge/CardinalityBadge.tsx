@@ -41,7 +41,7 @@ export function CardinalityBadge(props: {
         onChange={props.onColorChange}
         palette={props.palette}
         onPaletteChange={props.onPaletteChange}
-        triggerClassName="ref-edge-badge-swatch"
+        triggerClassName="h-[13px] w-[13px] shrink-0 cursor-pointer rounded-full border-[1.5px] border-current bg-none p-0"
         tooltip="Couleur du lien"
       />
       {props.showReset && (

@@ -41,18 +41,18 @@ function ZoneNodeImpl({ data, selected }: NodeProps<ZoneNodeType>) {
         }
       />
       <div
-        className="zone-node"
+        className="relative box-border h-full w-full rounded-lg"
         style={{
           background: `${color}1f`,
           border: `1.5px dashed ${zone.style?.borderColor ?? color}`,
         }}
         onDoubleClick={() => setEditing(true)}
       >
-        <div className="zone-node-label-row">
+        <div className="absolute left-2.5 top-2 flex items-center gap-1.5">
           {editing ? (
             <input
               autoFocus
-              className="nodrag zone-node-label-input"
+              className="nodrag rounded border border-border-strong px-1.5 py-0.5 text-[calc(12.5px_*_var(--canvas-font-scale))] font-bold"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onBlur={commit}
@@ -66,7 +66,11 @@ function ZoneNodeImpl({ data, selected }: NodeProps<ZoneNodeType>) {
               }}
             />
           ) : (
-            <span className="zone-node-label" style={{ color }} data-tooltip="Double-click to rename">
+            <span
+              className="text-[calc(12.5px_*_var(--canvas-font-scale))] font-bold tracking-[-0.01em]"
+              style={{ color }}
+              data-tooltip="Double-click to rename"
+            >
               {zone.label}
             </span>
           )}
@@ -75,7 +79,7 @@ function ZoneNodeImpl({ data, selected }: NodeProps<ZoneNodeType>) {
             onChange={data.onColorChange}
             palette={data.palette}
             onPaletteChange={data.onPaletteChange}
-            triggerClassName="zone-node-swatch"
+            triggerClassName="h-[15px] w-[15px] cursor-pointer rounded-full border-[1.5px] border-white/80 bg-none p-0 shadow-xs"
             tooltip="Zone color"
           />
         </div>

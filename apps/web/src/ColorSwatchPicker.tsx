@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { PlusIcon } from "./Icons.js";
+import { INPUT_CLASS } from "./ui/inputStyles.js";
+
+export const SWATCH_CELL_CLASS =
+  "h-[22px] w-[22px] shrink-0 rounded-sm border-[1.5px] border-white/15 p-0 cursor-pointer transition-transform duration-75 ease-out hover:scale-110";
+export const SWATCH_CELL_ACTIVE_CLASS = "outline outline-2 outline-primary outline-offset-1";
+export const SWATCH_GRID_CLASS = "grid grid-cols-5 gap-1.5 mb-2";
 
 export const DEFAULT_PALETTE = [
   "#6366f1",
@@ -114,13 +120,17 @@ export function ColorSwatchPicker(props: {
       {open &&
         popoverPos &&
         createPortal(
-          <div ref={popoverRef} className="color-popover nodrag" style={{ left: popoverPos.x, top: popoverPos.y }}>
-            <div className="color-popover-grid">
+          <div
+            ref={popoverRef}
+            className="fixed z-[2000] animate-modal-in rounded-md border border-border bg-surface-raised p-2.5 shadow-lg nodrag"
+            style={{ left: popoverPos.x, top: popoverPos.y }}
+          >
+            <div className={SWATCH_GRID_CLASS}>
               {props.palette.map((c) => (
                 <button
                   key={c}
                   type="button"
-                  className={`color-swatch-cell${c.toLowerCase() === props.value.toLowerCase() ? " color-swatch-cell-active" : ""}`}
+                  className={`${SWATCH_CELL_CLASS} ${c.toLowerCase() === props.value.toLowerCase() ? SWATCH_CELL_ACTIVE_CLASS : ""}`}
                   style={{ background: c }}
                   onClick={() => {
                     props.onChange(c);
@@ -132,7 +142,7 @@ export function ColorSwatchPicker(props: {
               ))}
               <button
                 type="button"
-                className="color-swatch-cell color-swatch-cell-add"
+                className={`${SWATCH_CELL_CLASS} flex items-center justify-center border-dashed bg-surface text-text-muted hover:border-text-muted hover:text-text`}
                 onClick={addCurrentToPalette}
                 data-tooltip="Add current color to this project's palette"
               >
@@ -140,7 +150,7 @@ export function ColorSwatchPicker(props: {
               </button>
             </div>
             <input
-              className="input color-popover-hex-input"
+              className={`${INPUT_CLASS} w-full px-2 py-[5px] font-mono text-xs`}
               value={hexDraft}
               onChange={(e) => setHexDraft(e.target.value)}
               onBlur={commitHex}

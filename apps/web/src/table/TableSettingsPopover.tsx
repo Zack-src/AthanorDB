@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Table } from "@athanordb/shared";
 import { SettingsIcon } from "../Icons.js";
+import { SWATCH_CELL_CLASS, SWATCH_CELL_ACTIVE_CLASS, SWATCH_GRID_CLASS } from "../ColorSwatchPicker.js";
+import {
+  POPOVER_GROUP_CLASS,
+  POPOVER_HEADER_CLASS,
+  POPOVER_INPUT_CLASS,
+  POPOVER_LABEL_CLASS,
+  POPOVER_TITLE_CLASS,
+} from "./tableStyles.js";
 
 export const DEFAULT_HEADER_COLOR = "#334155";
 
@@ -90,19 +98,19 @@ export function TableSettingsPopover({
         createPortal(
           <div
             ref={popoverRef}
-            className="table-settings-popover nodrag"
+            className="fixed z-[9999] flex w-[260px] flex-col gap-2.5 rounded-md border border-border-strong bg-surface p-3 shadow-lg nodrag"
             style={{ left: popoverPos.x, top: popoverPos.y }}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="table-settings-header">
-              <span className="table-settings-title">Table Settings</span>
+            <div className={POPOVER_HEADER_CLASS}>
+              <span className={POPOVER_TITLE_CLASS}>Table Settings</span>
             </div>
 
-            <div className="table-settings-group">
-              <label className="table-settings-label">Table Name</label>
+            <div className={POPOVER_GROUP_CLASS}>
+              <label className={POPOVER_LABEL_CLASS}>Table Name</label>
               <input
-                className="input table-settings-input"
+                className={POPOVER_INPUT_CLASS}
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
                 onBlur={commitRename}
@@ -111,14 +119,14 @@ export function TableSettingsPopover({
               />
             </div>
 
-            <div className="table-settings-group">
-              <label className="table-settings-label">Header Color</label>
-              <div className="color-popover-grid" style={{ marginTop: 4 }}>
+            <div className={POPOVER_GROUP_CLASS}>
+              <label className={POPOVER_LABEL_CLASS}>Header Color</label>
+              <div className={`${SWATCH_GRID_CLASS} mt-1`}>
                 {palette.map((c) => (
                   <button
                     key={c}
                     type="button"
-                    className={`color-swatch-cell${c.toLowerCase() === currentColor.toLowerCase() ? " color-swatch-cell-active" : ""}`}
+                    className={`${SWATCH_CELL_CLASS} ${c.toLowerCase() === currentColor.toLowerCase() ? SWATCH_CELL_ACTIVE_CLASS : ""}`}
                     style={{ background: c }}
                     onClick={() => onStyleChange(c, table.style?.borderColor)}
                     data-tooltip={c}

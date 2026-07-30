@@ -138,9 +138,13 @@ export function ProjectEditor(props: {
         remoteAwareness={remoteAwareness}
         onDisplayNameChange={props.onDisplayNameChange}
       />
-      <div className="canvas-container">
+      <div className="relative flex min-h-0 min-w-0 flex-1">
         {dbmlOpen && liveProject ? (
-          <Suspense fallback={<div className="side-panel" style={{ width: 440 }} />}>
+          <Suspense
+            fallback={
+              <div className="relative flex shrink-0 flex-col border-r border-border bg-surface" style={{ width: 440 }} />
+            }
+          >
             <DbmlPanel
               project={liveProject}
               projectId={project.id}
@@ -149,7 +153,12 @@ export function ProjectEditor(props: {
             />
           </Suspense>
         ) : (
-          <button className="panel-expand-tab" onClick={() => setDbmlOpen(true)} data-tooltip="Show DBML editor" data-tooltip-pos="bottom">
+          <button
+            className="absolute left-2 top-2 z-[5] flex h-[26px] w-[26px] cursor-pointer items-center justify-center rounded-sm border border-border bg-surface-raised p-0 text-text-muted shadow-sm hover:bg-surface-hover hover:text-text"
+            onClick={() => setDbmlOpen(true)}
+            data-tooltip="Show DBML editor"
+            data-tooltip-pos="bottom"
+          >
             <ChevronRightIcon size={15} />
           </button>
         )}

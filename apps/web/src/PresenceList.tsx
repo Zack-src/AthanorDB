@@ -11,7 +11,11 @@ function initials(name: string): string {
 
 function Avatar(props: { name: string; color: string }) {
   return (
-    <span className="presence-avatar" style={{ background: props.color }} data-tooltip={props.name}>
+    <span
+      className="-ml-2 inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border-2 border-surface text-[11px] font-bold text-white first:ml-0"
+      style={{ background: props.color }}
+      data-tooltip={props.name}
+    >
       {initials(props.name)}
     </span>
   );
@@ -19,7 +23,7 @@ function Avatar(props: { name: string; color: string }) {
 
 export function PresenceList(props: { localName: string; localColor: string; remote: Map<number, AwarenessState> }) {
   return (
-    <div className="presence-stack">
+    <div className="flex items-center">
       <Avatar name={`${props.localName} (you)`} color={props.localColor} />
       {Array.from(props.remote.entries()).map(([clientId, state]) => (
         <Avatar key={clientId} name={state.user.name} color={state.user.color} />

@@ -2,6 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Field } from "@athanordb/shared";
 import { DiamondIcon, KeyIcon, PencilIcon, TrashIcon } from "../Icons.js";
+import { Button } from "../ui/Button.js";
+import {
+  FIELD_TYPE_CHIP_ACTIVE_CLASS,
+  FIELD_TYPE_CHIP_CLASS,
+  KW_TOGGLE_ACTIVE_CLASS,
+  KW_TOGGLE_BASE_CLASS,
+  POPOVER_GROUP_CLASS,
+  POPOVER_HEADER_CLASS,
+  POPOVER_INPUT_CLASS,
+  POPOVER_LABEL_CLASS,
+  POPOVER_TITLE_CLASS,
+} from "./tableStyles.js";
 
 const COMMON_TYPES = ["int", "varchar", "text", "boolean", "timestamp", "uuid", "json", "decimal", "bigint"];
 
@@ -115,16 +127,16 @@ export function FieldEditorPopover({
         createPortal(
           <div
             ref={popoverRef}
-            className="field-popover nodrag"
+            className="fixed z-[9999] flex w-[290px] flex-col gap-2.5 rounded-md border border-border-strong bg-surface p-3 shadow-lg nodrag"
             style={{ left: popoverPos.x, top: popoverPos.y }}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="field-popover-header">
-              <span className="field-popover-title">Column Properties</span>
-              <button
-                type="button"
-                className="btn btn-icon btn-danger-ghost btn-xs"
+            <div className={POPOVER_HEADER_CLASS}>
+              <span className={POPOVER_TITLE_CLASS}>Column Properties</span>
+              <Button
+                variant="danger-ghost"
+                size="icon"
                 onClick={() => {
                   onDeleteField?.(field.id);
                   setOpen(false);
@@ -132,13 +144,13 @@ export function FieldEditorPopover({
                 data-tooltip="Delete column"
               >
                 <TrashIcon size={13} />
-              </button>
+              </Button>
             </div>
 
-            <div className="field-popover-group">
-              <label className="field-popover-label">Column Name</label>
+            <div className={POPOVER_GROUP_CLASS}>
+              <label className={POPOVER_LABEL_CLASS}>Column Name</label>
               <input
-                className="input field-popover-input"
+                className={POPOVER_INPUT_CLASS}
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
                 onBlur={commitName}
@@ -147,22 +159,22 @@ export function FieldEditorPopover({
               />
             </div>
 
-            <div className="field-popover-group">
-              <label className="field-popover-label">Data Type</label>
+            <div className={POPOVER_GROUP_CLASS}>
+              <label className={POPOVER_LABEL_CLASS}>Data Type</label>
               <input
-                className="input field-popover-input"
+                className={POPOVER_INPUT_CLASS}
                 value={typeDraft}
                 onChange={(e) => setTypeDraft(e.target.value)}
                 onBlur={() => commitType()}
                 onKeyDown={(e) => e.key === "Enter" && commitType()}
                 placeholder="e.g. int, varchar"
               />
-              <div className="field-popover-type-chips">
+              <div className="mt-0.5 flex flex-wrap gap-1">
                 {COMMON_TYPES.map((t) => (
                   <button
                     key={t}
                     type="button"
-                    className={`field-type-chip${field.type === t ? " field-type-chip-active" : ""}`}
+                    className={`${FIELD_TYPE_CHIP_CLASS} ${field.type === t ? FIELD_TYPE_CHIP_ACTIVE_CLASS : ""}`}
                     onClick={() => {
                       setTypeDraft(t);
                       commitType(t);
@@ -174,12 +186,12 @@ export function FieldEditorPopover({
               </div>
             </div>
 
-            <div className="field-popover-group">
-              <label className="field-popover-label">Keywords & Attributes</label>
-              <div className="field-popover-kw-grid">
+            <div className={POPOVER_GROUP_CLASS}>
+              <label className={POPOVER_LABEL_CLASS}>Keywords & Attributes</label>
+              <div className="grid grid-cols-2 gap-[5px]">
                 <button
                   type="button"
-                  className={`kw-toggle-btn kw-toggle-pk${field.pk ? " active" : ""}`}
+                  className={`${KW_TOGGLE_BASE_CLASS} ${field.pk ? KW_TOGGLE_ACTIVE_CLASS.pk : ""}`}
                   onClick={() => onUpdateField?.(field.id, { pk: !field.pk })}
                   data-tooltip="Primary Key (pk)"
                 >
@@ -187,7 +199,7 @@ export function FieldEditorPopover({
                 </button>
                 <button
                   type="button"
-                  className={`kw-toggle-btn kw-toggle-unique${field.unique ? " active" : ""}`}
+                  className={`${KW_TOGGLE_BASE_CLASS} ${field.unique ? KW_TOGGLE_ACTIVE_CLASS.unique : ""}`}
                   onClick={() => onUpdateField?.(field.id, { unique: !field.unique })}
                   data-tooltip="Unique (unique)"
                 >
@@ -195,7 +207,7 @@ export function FieldEditorPopover({
                 </button>
                 <button
                   type="button"
-                  className={`kw-toggle-btn kw-toggle-notnull${field.notNull ? " active" : ""}`}
+                  className={`${KW_TOGGLE_BASE_CLASS} ${field.notNull ? KW_TOGGLE_ACTIVE_CLASS.notNull : ""}`}
                   onClick={() => onUpdateField?.(field.id, { notNull: !field.notNull })}
                   data-tooltip="Not Null (notNull)"
                 >
@@ -203,7 +215,7 @@ export function FieldEditorPopover({
                 </button>
                 <button
                   type="button"
-                  className={`kw-toggle-btn kw-toggle-increment${field.increment ? " active" : ""}`}
+                  className={`${KW_TOGGLE_BASE_CLASS} ${field.increment ? KW_TOGGLE_ACTIVE_CLASS.increment : ""}`}
                   onClick={() => onUpdateField?.(field.id, { increment: !field.increment })}
                   data-tooltip="Auto Increment (increment)"
                 >
@@ -212,10 +224,10 @@ export function FieldEditorPopover({
               </div>
             </div>
 
-            <div className="field-popover-group">
-              <label className="field-popover-label">Default Value</label>
+            <div className={POPOVER_GROUP_CLASS}>
+              <label className={POPOVER_LABEL_CLASS}>Default Value</label>
               <input
-                className="input field-popover-input"
+                className={POPOVER_INPUT_CLASS}
                 value={defaultDraft}
                 onChange={(e) => setDefaultDraft(e.target.value)}
                 onBlur={commitDefault}
@@ -224,10 +236,10 @@ export function FieldEditorPopover({
               />
             </div>
 
-            <div className="field-popover-group">
-              <label className="field-popover-label">Note / Description</label>
+            <div className={POPOVER_GROUP_CLASS}>
+              <label className={POPOVER_LABEL_CLASS}>Note / Description</label>
               <input
-                className="input field-popover-input"
+                className={POPOVER_INPUT_CLASS}
                 value={noteDraft}
                 onChange={(e) => setNoteDraft(e.target.value)}
                 onBlur={commitNote}

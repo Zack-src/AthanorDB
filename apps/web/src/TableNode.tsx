@@ -5,6 +5,17 @@ import { CommentThread } from "./CommentThread.js";
 import { CodeIcon, PlusIcon } from "./Icons.js";
 import { DEFAULT_HEADER_COLOR, TableSettingsPopover } from "./table/TableSettingsPopover.js";
 import { TableNodeRow } from "./table/TableNodeRow.js";
+import {
+  HEADER_ACTIONS_CLASS,
+  HEADER_BTN_CLASS,
+  TABLE_ADD_BTN_CLASS,
+  TABLE_FOOTER_CLASS,
+  TABLE_HEADER_CLASS,
+  TABLE_NAME_CLASS,
+  TABLE_NAME_INPUT_CLASS,
+  TABLE_NODE_CLASS,
+  TABLE_NODE_SELECTED_CLASS,
+} from "./table/tableStyles.js";
 
 export interface TableNodeData {
   table: Table;
@@ -78,11 +89,11 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
 
   return (
     <div
-      className={`table-node${selected ? " table-node-selected" : ""}`}
+      className={`group table-node ${TABLE_NODE_CLASS} ${selected ? `is-selected ${TABLE_NODE_SELECTED_CLASS}` : ""}`}
       style={{ borderColor: table.style?.borderColor }}
     >
       <div
-        className="table-node-header"
+        className={TABLE_HEADER_CLASS}
         style={{ background: table.style?.color ?? DEFAULT_HEADER_COLOR }}
         onDoubleClick={() => setRenaming(true)}
       >
@@ -93,7 +104,7 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
         {renaming ? (
           <input
             autoFocus
-            className="nodrag table-node-name-input"
+            className={`nodrag ${TABLE_NAME_INPUT_CLASS}`}
             value={nameDraft}
             onChange={(e) => setNameDraft(e.target.value)}
             onBlur={commitRename}
@@ -107,16 +118,16 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
             }}
           />
         ) : (
-          <span className="table-node-name" data-tooltip="Double-click to rename">
+          <span className={TABLE_NAME_CLASS} data-tooltip="Double-click to rename">
             {table.name}
           </span>
         )}
 
-        <div className="table-node-header-actions">
+        <div className={HEADER_ACTIONS_CLASS}>
           {data.onGoToDbml && (
             <button
               type="button"
-              className="table-node-header-btn nodrag"
+              className={`${HEADER_BTN_CLASS} nodrag`}
               onClick={(e) => {
                 e.stopPropagation();
                 data.onGoToDbml?.();
@@ -131,7 +142,7 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
             currentUser={data.currentUser}
             onAdd={(text) => data.onAddComment(text)}
             onDelete={data.onDeleteComment}
-            triggerClassName="table-node-header-btn table-node-comment"
+            triggerClassName={HEADER_BTN_CLASS}
             tooltip="Table comments"
           />
           <TableSettingsPopover
@@ -139,7 +150,7 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
             palette={data.palette}
             onRename={data.onRename}
             onStyleChange={data.onStyleChange}
-            triggerClassName="table-node-header-btn table-node-settings"
+            triggerClassName={HEADER_BTN_CLASS}
           />
         </div>
       </div>
@@ -161,10 +172,10 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
         />
       ))}
       {data.onAddField && table.detailLevel !== "compact" && (
-        <div className="table-node-footer">
+        <div className={TABLE_FOOTER_CLASS}>
           <button
             type="button"
-            className="table-node-add-btn nodrag"
+            className={`${TABLE_ADD_BTN_CLASS} nodrag`}
             onClick={(e) => {
               e.stopPropagation();
               const count = table.fields.length + 1;

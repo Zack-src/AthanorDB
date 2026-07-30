@@ -1,4 +1,5 @@
 import type { EdgeContextMenuState } from "./useEdgeRouting.js";
+import { CONTEXT_MENU_ITEM_CLASS } from "../ui/contextMenuStyles.js";
 
 /** Right-click menu on an edge's path or a specific waypoint. */
 export function EdgeContextMenu(props: {
@@ -10,25 +11,25 @@ export function EdgeContextMenu(props: {
 }) {
   return (
     <div
-      className="context-menu nodrag nopan"
-      style={{ position: "fixed", left: props.menu.x, top: props.menu.y, zIndex: 1000 }}
+      className="fixed z-[1000] min-w-[168px] animate-modal-in rounded-md border border-border bg-surface-raised p-1 shadow-lg nodrag nopan"
+      style={{ left: props.menu.x, top: props.menu.y }}
       onClick={(e) => e.stopPropagation()}
     >
       {props.menu.pointIndex !== undefined && (
-        <button className="context-menu-item" onClick={() => props.onDeletePoint(props.menu.pointIndex!)}>
+        <button className={CONTEXT_MENU_ITEM_CLASS} onClick={() => props.onDeletePoint(props.menu.pointIndex!)}>
           Supprimer ce point
         </button>
       )}
-      <button className="context-menu-item" onClick={props.onResetRouting}>
+      <button className={CONTEXT_MENU_ITEM_CLASS} onClick={props.onResetRouting}>
         Réinitialiser le tracé
       </button>
       {props.onResetColor && (
-        <button className="context-menu-item" onClick={props.onResetColor}>
+        <button className={CONTEXT_MENU_ITEM_CLASS} onClick={props.onResetColor}>
           Réinitialiser la couleur
         </button>
       )}
       {props.onDeleteRef && (
-        <button className="context-menu-item" style={{ color: "#ef4444" }} onClick={props.onDeleteRef}>
+        <button className={CONTEXT_MENU_ITEM_CLASS} style={{ color: "#ef4444" }} onClick={props.onDeleteRef}>
           Supprimer la relation
         </button>
       )}

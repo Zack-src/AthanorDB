@@ -18,6 +18,10 @@ export default {
         // resolve to the same design tokens hand-written CSS already uses —
         // one palette, two authoring surfaces, instead of a second one to
         // keep in sync.
+        bg: {
+          DEFAULT: "var(--color-bg)",
+          canvas: "var(--color-bg-canvas)",
+        },
         surface: {
           DEFAULT: "var(--color-surface)",
           raised: "var(--color-surface-raised)",
@@ -32,6 +36,7 @@ export default {
           secondary: "var(--color-text-secondary)",
           muted: "var(--color-text-muted)",
           onaccent: "var(--color-text-on-accent)",
+          onlight: "var(--color-text-on-light)",
         },
         primary: {
           DEFAULT: "var(--color-primary)",

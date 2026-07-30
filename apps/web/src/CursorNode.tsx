@@ -22,7 +22,10 @@ function CursorNodeImpl({ data }: NodeProps<CursorNodeType>) {
           strokeLinejoin="round"
         />
       </svg>
-      <span className="cursor-label" style={{ background: data.color }}>
+      <span
+        className="absolute left-[15px] top-[15px] whitespace-nowrap rounded-full px-[7px] py-0.5 text-[10.5px] font-semibold text-white shadow-sm"
+        style={{ background: data.color }}
+      >
         {data.name}
       </span>
     </div>
