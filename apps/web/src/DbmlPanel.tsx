@@ -4,6 +4,7 @@ import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightAc
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
+import { selectNextOccurrence } from "@codemirror/search";
 import { oneDark } from "@codemirror/theme-one-dark";
 import type { Project } from "@athanordb/shared";
 import { projectToDbml } from "@athanordb/dbml-engine";
@@ -53,11 +54,30 @@ function CodeMirrorEditor(props: { value: string; onChange: (val: string) => voi
         autocompletion({ override: [dbmlCompletion], selectOnOpen: true }),
         keymap.of([
           customTabBinding,
+          { key: "Mod-d", run: selectNextOccurrence, preventDefault: true },
           ...completionKeymap,
           ...defaultKeymap,
           ...historyKeymap,
           ...closeBracketsKeymap,
         ]),
+        // CodeMirror's own keymap dispatch calls preventDefault() for a
+        // matched binding, but never stopPropagation() — the native keydown
+        // still bubbles out of the editor afterward. The app's global
+        // Ctrl+D/Ctrl+Z/Ctrl+Y canvas shortcuts (App.tsx) already try to
+        // exclude `.cm-editor` via `e.target.closest(...)`, but that's a
+        // second line of defense we shouldn't have to rely on being
+        // perfectly in sync with every future shortcut added there. Stop it
+        // at the source instead, for every ctrl/cmd-combo key this editor
+        // itself binds (d/z/y), so it can never reach a window-level
+        // listener regardless of how that guard is written.
+        EditorView.domEventHandlers({
+          keydown: (event) => {
+            if ((event.ctrlKey || event.metaKey) && ["d", "z", "y"].includes(event.key.toLowerCase())) {
+              event.stopPropagation();
+            }
+            return false;
+          },
+        }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             onChangeRef.current(update.state.doc.toString());

@@ -52,6 +52,44 @@ test("DBML -> Project round-trips table/field constraints", () => {
   assert.match(regenerated, /default: 'draft'/);
 });
 
+test("implicit \"public\" schema (the parser's silent default) is not carried through when re-exported", () => {
+  const source = `Table users {
+  id int [pk]
+}`;
+  const project = toProject(parseDbml(source), "Test", source);
+  assert.equal(project.tables[0].schemaName, undefined);
+  assert.doesNotMatch(projectToDbml(project), /public/i);
+});
+
+test("explicit \"public.\" schema in the source is preserved and re-exported", () => {
+  const source = `Table public.users {
+  id int [pk]
+}`;
+  const project = toProject(parseDbml(source), "Test", source);
+  assert.equal(project.tables[0].schemaName, "public");
+  assert.match(projectToDbml(project), /Table\s+public\.users/);
+});
+
+test("a non-default schema is always preserved, source or not", () => {
+  const source = `Table billing.invoices {
+  id int [pk]
+}`;
+  const withoutSource = toProject(parseDbml(source), "Test");
+  assert.equal(withoutSource.tables[0].schemaName, "billing");
+
+  const withSource = toProject(parseDbml(source), "Test", source);
+  assert.equal(withSource.tables[0].schemaName, "billing");
+  assert.match(projectToDbml(withSource), /Table\s+billing\.invoices/);
+});
+
+test("without source text, an implicit-default table has no schemaName (can't tell explicit from implicit, so assume implicit)", () => {
+  const source = `Table users {
+  id int [pk]
+}`;
+  const project = toProject(parseDbml(source));
+  assert.equal(project.tables[0].schemaName, undefined);
+});
+
 test("ref endpoints resolve to real table/field ids, not names (regression: used to fall back to tableName/fieldNames)", () => {
   const source = `
 Table users {

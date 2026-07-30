@@ -391,7 +391,9 @@ export function registerProjectRoutes(app: FastifyInstance): void {
       }
     }
 
-    const parsed = body.dialect ? toProject(database, row.name) : applyVisualMetadata(toProject(database, row.name), body.source);
+    const parsed = body.dialect
+      ? toProject(database, row.name, body.source)
+      : applyVisualMetadata(toProject(database, row.name, body.source), body.source);
     const room = getRoom(id);
     // Merge by table/field name rather than a blind overwrite, so reimporting
     // an updated schema keeps existing tables' positions/detail level instead

@@ -20,12 +20,42 @@ export function toSql(database: any, dialect: SqlDialect): string {
   return ModelExporter.export(database, dialect, false);
 }
 
+// @dbml/core always creates a schema named "public" when the source doesn't
+// declare one (its own DEFAULT_SCHEMA_NAME, hardcoded identically for every
+// dialect — including mysql/mssql, which don't even have a "public" schema
+// concept). It intends to track whether that name came from the source or
+// was defaulted (a `hasDefaultSchema` flag), but the code paths that set it
+// are commented out in the installed version, so it's always false and
+// useless for that purpose. We recover the distinction ourselves by checking
+// the raw source text for a literal "public."-qualified table declaration.
+const IMPLICIT_SCHEMA_NAME = "public";
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** True if `source` explicitly qualifies `tableName` with `schemaName` (quoted or not, any of DBML/postgres/mysql/mssql's quoting styles). */
+function isSchemaExplicitInSource(source: string, schemaName: string, tableName: string): boolean {
+  const escSchema = escapeRegExp(schemaName);
+  const escTable = escapeRegExp(tableName);
+  const ident = (name: string) => `(?:"${name}"|\`${name}\`|\\[${name}\\]|${name})`;
+  const pattern = new RegExp(`${ident(escSchema)}\\s*\\.\\s*${ident(escTable)}`, "i");
+  return pattern.test(source);
+}
+
 /**
  * Convert @dbml/core's raw Database model into AthanorDB's internal Project
  * shape. Visual metadata (position/color/detail level) is not present in
  * DBML/SQL and is defaulted here; the editor fills it in on first layout.
+ *
+ * `source`, if given, is the raw DBML/SQL text that was parsed — used only
+ * to detect whether a table's "public" schema was actually typed by the
+ * user (kept) or is just @dbml/core's silent default (dropped), so a schema
+ * never round-trips into text that never asked for it. Without `source`
+ * (e.g. tests constructing a `Project` directly from a parsed model), a
+ * table's schema is treated as implicit whenever it's the default name.
  */
-export function toProject(database: any, projectName = "Untitled"): Project {
+export function toProject(database: any, projectName = "Untitled", source?: string): Project {
   const schema = database.schemas?.[0];
   const tables = (schema?.tables ?? []).map((table: any, index: number) => {
     const fields = (table.fields ?? []).map((field: any) => ({
@@ -62,10 +92,15 @@ export function toProject(database: any, projectName = "Untitled"): Project {
       name: idx.name ?? undefined,
     }));
 
+    const isExplicitSchema =
+      schema?.name && schema.name !== IMPLICIT_SCHEMA_NAME
+        ? true
+        : Boolean(schema?.name && source && isSchemaExplicitInSource(source, schema.name, table.name));
+
     return {
       id: String(table.id ?? table.name),
       name: table.name,
-      schemaName: schema?.name,
+      schemaName: isExplicitSchema ? schema.name : undefined,
       note: table.note ?? undefined,
       fields,
       indexes,
