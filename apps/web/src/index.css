@@ -181,38 +181,28 @@ input:-webkit-autofill:focus {
   display: none;
 }
 
-.react-flow__controls {
-  box-shadow: var(--shadow-sm);
-  border-radius: var(--radius-sm);
-}
-
-.react-flow__controls .react-flow__controls-button:first-child {
-  border-top-left-radius: var(--radius-sm);
-  border-top-right-radius: var(--radius-sm);
-}
-
-.react-flow__controls .react-flow__controls-button:last-child {
-  border-bottom-left-radius: var(--radius-sm);
-  border-bottom-right-radius: var(--radius-sm);
-}
-
-/* Qualified with the `.react-flow__controls` ancestor (rather than just
-   `.react-flow__controls-button`) to out-rank @xyflow/react's own same-
-   selector rule in `dist/style.css` — that stylesheet is imported after this
-   one (App.tsx, after main.tsx's index.css), so at equal specificity it would
-   otherwise win and silently put the library's light-mode background back.
-   `color` (not `fill`) is what actually reaches the icon: the library's own
+/* Figma-style floating pill toolbar (see ui/canvasToolbarStyles.ts for the
+   container/segment classes) — the two native buttons React Flow itself
+   injects (fit view, toggle interactivity) can't take a `className` prop
+   per-button, so they're restyled here to match the custom ControlButtons
+   and segments sitting next to them in the same pill. `!important` fights
+   @xyflow/react's own `dist/style.css` `.horizontal` variant, which at equal
+   selector specificity would otherwise still win (see git history for the
+   fuller specificity note this replaced). `color` (not `fill`) is what
+   actually reaches the icon: the library's own
    `.react-flow__controls-button svg { fill: currentColor }` rule resolves
    `currentColor` from this element's `color`, not its `fill`. */
 .react-flow__controls .react-flow__controls-button {
-  border: none;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
+  height: 28px !important;
+  width: 28px !important;
+  border: none !important;
+  border-radius: var(--radius-full) !important;
+  background: transparent !important;
   color: var(--color-text-secondary);
 }
 
 .react-flow__controls .react-flow__controls-button:hover {
-  background: var(--color-surface-hover);
+  background: rgba(255, 255, 255, 0.1) !important;
   color: var(--color-text);
 }
 

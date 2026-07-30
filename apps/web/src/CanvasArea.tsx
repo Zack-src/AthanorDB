@@ -13,14 +13,22 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import type { Awareness } from "y-protocols/awareness.js";
+import type { DetailLevel } from "@athanordb/shared";
 import { TableNode } from "./TableNode.js";
 import { RefEdge, type RefEdgeType } from "./RefEdge.js";
 import { ZoneNode } from "./ZoneNode.js";
 import { StickyNoteNode } from "./StickyNoteNode.js";
 import { CursorNode, type CursorNodeType } from "./CursorNode.js";
 import { FrameIcon, LinkIcon, MinimapIcon, NoteIcon, TableIcon } from "./Icons.js";
-import { loadShowMinimap, loadViewport, saveShowMinimap, viewportKey } from "./localPrefs.js";
+import { FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadShowMinimap, loadViewport, saveShowMinimap, viewportKey } from "./localPrefs.js";
 import { CONTEXT_MENU_CLASS, CONTEXT_MENU_ITEM_CLASS } from "./ui/contextMenuStyles.js";
+import {
+  CANVAS_TOOLBAR_CLASS,
+  CANVAS_TOOLBAR_DIVIDER_CLASS,
+  CANVAS_TOOLBAR_ICON_BTN_CLASS,
+  CANVAS_TOOLBAR_SEGMENT_ACTIVE_CLASS,
+  CANVAS_TOOLBAR_SEGMENT_CLASS,
+} from "./ui/canvasToolbarStyles.js";
 import { SWATCH_CELL_CLASS } from "./ColorSwatchPicker.js";
 import type { AllNodes, CanvasExportHandle, CanvasNode } from "./types.js";
 
@@ -107,6 +115,9 @@ export function CanvasArea(props: {
   onSetTablesColor: (tableIds: string[], color: string) => void;
   palette: string[];
   fontScale: number;
+  onAdjustFontScale: (delta: number) => void;
+  activeDetailLevel: DetailLevel | null;
+  onSetDetailLevel: (level: DetailLevel) => void;
   highlightLinks: boolean;
   onHighlightLinksChange: (highlight: boolean) => void;
   /** Fires on table hover start/end (null on leave) — lets the parent highlight that table's refs. */
@@ -265,28 +276,60 @@ export function CanvasArea(props: {
         minZoom={0.05}
       >
         <Background color="#33353c" gap={20} />
-        <Controls showZoom={false}>
+        <Controls showZoom={false} orientation="horizontal" position="bottom-left" className={CANVAS_TOOLBAR_CLASS}>
+          <div className="flex items-center gap-0.5" data-tooltip="Detail level" data-tooltip-pos="bottom">
+            {(["compact", "standard", "full"] as const).map((level) => (
+              <button
+                key={level}
+                type="button"
+                className={`${CANVAS_TOOLBAR_SEGMENT_CLASS} ${props.activeDetailLevel === level ? CANVAS_TOOLBAR_SEGMENT_ACTIVE_CLASS : ""}`}
+                onClick={() => props.onSetDetailLevel(level)}
+                data-tooltip={
+                  level === "compact" ? "Show only key fields" : level === "standard" ? "Show primary/foreign keys" : "Show all fields"
+                }
+              >
+                {level === "compact" ? "Compact" : level === "standard" ? "Standard" : "Full"}
+              </button>
+            ))}
+          </div>
+          <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
+          <div className="flex items-center gap-0.5 px-0.5" data-tooltip="Canvas text size" data-tooltip-pos="bottom">
+            <button
+              type="button"
+              className={`${CANVAS_TOOLBAR_SEGMENT_CLASS} !px-1.5 disabled:pointer-events-none disabled:opacity-40`}
+              onClick={() => props.onAdjustFontScale(-FONT_SCALE_STEP)}
+              disabled={props.fontScale <= FONT_SCALE_MIN}
+              data-tooltip="Decrease canvas text size"
+            >
+              <span className="text-[11px] font-bold leading-none">A</span>
+            </button>
+            <span className="min-w-[32px] text-center text-[11.5px] text-text-muted">{Math.round(props.fontScale * 100)}%</span>
+            <button
+              type="button"
+              className={`${CANVAS_TOOLBAR_SEGMENT_CLASS} !px-1.5 disabled:pointer-events-none disabled:opacity-40`}
+              onClick={() => props.onAdjustFontScale(FONT_SCALE_STEP)}
+              disabled={props.fontScale >= FONT_SCALE_MAX}
+              data-tooltip="Increase canvas text size"
+            >
+              <span className="text-sm font-bold leading-none">A</span>
+            </button>
+          </div>
+          <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
           <ControlButton
+            className={CANVAS_TOOLBAR_ICON_BTN_CLASS}
             onClick={() => props.onHighlightLinksChange(!props.highlightLinks)}
             data-tooltip={props.highlightLinks ? "Masquer la mise en évidence des liens et cardinalités" : "Mettre en évidence les liens et cardinalités"}
             aria-label="Toggle link highlight"
-            style={{
-              color: props.highlightLinks ? "#818cf8" : undefined,
-              borderColor: props.highlightLinks ? "#6366f1" : undefined,
-              background: props.highlightLinks ? "rgba(99, 102, 241, 0.25)" : undefined,
-            }}
+            style={{ color: props.highlightLinks ? "#818cf8" : undefined, background: props.highlightLinks ? "rgba(99, 102, 241, 0.25)" : undefined }}
           >
             <LinkIcon size={14} />
           </ControlButton>
           <ControlButton
+            className={CANVAS_TOOLBAR_ICON_BTN_CLASS}
             onClick={toggleMinimap}
             data-tooltip={showMinimap ? "Masquer la minimap" : "Afficher la minimap"}
             aria-label="Toggle minimap"
-            style={{
-              color: showMinimap ? "#818cf8" : undefined,
-              borderColor: showMinimap ? "#6366f1" : undefined,
-              background: showMinimap ? "rgba(99, 102, 241, 0.25)" : undefined,
-            }}
+            style={{ color: showMinimap ? "#818cf8" : undefined, background: showMinimap ? "rgba(99, 102, 241, 0.25)" : undefined }}
           >
             <MinimapIcon size={14} />
           </ControlButton>

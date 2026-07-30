@@ -122,10 +122,6 @@ export function ProjectEditor(props: {
         onUndo={() => undoManager?.undo()}
         onRedo={() => undoManager?.redo()}
         onAutoLayout={autoLayout}
-        activeDetailLevel={activeDetailLevel}
-        onSetDetailLevel={setAllDetailLevels}
-        fontScale={fontScale}
-        onAdjustFontScale={adjustFontScale}
         onShowImport={() => setShowImport(true)}
         onShowExport={() => setShowExport(true)}
         onShowHistory={() => setShowHistory(true)}
@@ -177,6 +173,9 @@ export function ProjectEditor(props: {
             onSetTablesColor={setTablesColor}
             palette={palette}
             fontScale={fontScale}
+            onAdjustFontScale={adjustFontScale}
+            activeDetailLevel={activeDetailLevel}
+            onSetDetailLevel={setAllDetailLevels}
             highlightLinks={highlightLinks}
             onHighlightLinksChange={handleHighlightLinksChange}
             onTableHoverChange={setHoveredTableId}

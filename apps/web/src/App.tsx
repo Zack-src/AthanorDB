@@ -8,6 +8,7 @@ import { ProjectListScreen } from "./ProjectListScreen.js";
 import { Login } from "./Login.js";
 import { AcceptInvite } from "./AcceptInvite.js";
 import { AdminConsole } from "./AdminConsole.js";
+import { APP_SHELL } from "./ui/layout.js";
 
 export function App() {
   const [adminOpen, setAdminOpen] = useState(false);
@@ -21,7 +22,7 @@ export function App() {
 
   if (routing.inviteToken) {
     return (
-      <div className="flex h-screen w-screen flex-col bg-bg">
+      <div className={APP_SHELL}>
         <AcceptInvite
           token={routing.inviteToken}
           onLoggedIn={(s) => {
@@ -34,12 +35,12 @@ export function App() {
   }
 
   if (session === "loading") {
-    return <div className="flex h-screen w-screen flex-col bg-bg" />;
+    return <div className={APP_SHELL} />;
   }
 
   if (!session) {
     return (
-      <div className="flex h-screen w-screen flex-col bg-bg">
+      <div className={APP_SHELL}>
         <Login onLoggedIn={setSession} />
       </div>
     );
@@ -51,7 +52,7 @@ export function App() {
 
   if (routing.openProject) {
     return (
-      <div className="flex h-screen w-screen flex-col bg-bg">
+      <div className={APP_SHELL}>
         <ProjectEditor
           project={routing.openProject}
           user={session.displayName}
