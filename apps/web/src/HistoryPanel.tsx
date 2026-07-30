@@ -2,34 +2,34 @@ import { useEffect, useRef, useState } from "react";
 import type { Project, RevisionMeta } from "@athanordb/shared";
 import { diffProjects, type ChangeStatus, type ProjectDiff } from "@athanordb/dbml-engine";
 import { Modal } from "./Modal.js";
+import { Button } from "./ui/Button.js";
+import { ErrorText } from "./ui/Alert.js";
+import { INPUT_CLASS, TEXTAREA_CODE_CLASS } from "./ui/inputStyles.js";
 
 const DIFF_ROW_CLASS: Record<ChangeStatus, string> = {
-  added: "diff-added",
-  removed: "diff-removed",
-  changed: "diff-changed",
+  added: "text-success",
+  removed: "text-danger",
+  changed: "text-warning",
 };
 const DIFF_SIGN: Record<ChangeStatus, string> = { added: "+", removed: "-", changed: "~" };
 
 function DiffSummary(props: { diff: ProjectDiff }) {
   const { tables, refs } = props.diff;
   if (tables.length === 0 && refs.length === 0) {
-    return <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>No schema changes since this revision.</div>;
+    return <div className="text-xs text-text-muted">No schema changes since this revision.</div>;
   }
   return (
     <div>
       {tables.map((t) => (
-        <div key={t.id} className={`diff-row ${DIFF_ROW_CLASS[t.status]}`}>
+        <div key={t.id} className={`font-mono text-xs leading-relaxed ${DIFF_ROW_CLASS[t.status]}`}>
           {DIFF_SIGN[t.status]} Table {t.renamedFrom ? `${t.renamedFrom} → ${t.name}` : t.name}
           {t.fields.length > 0 && (
-            <span style={{ color: "var(--color-text-muted)" }}>
-              {" "}
-              ({t.fields.map((f) => `${DIFF_SIGN[f.status]}${f.name}`).join(", ")})
-            </span>
+            <span className="text-text-muted"> ({t.fields.map((f) => `${DIFF_SIGN[f.status]}${f.name}`).join(", ")})</span>
           )}
         </div>
       ))}
       {refs.map((r) => (
-        <div key={r.id} className={`diff-row ${DIFF_ROW_CLASS[r.status]}`}>
+        <div key={r.id} className={`font-mono text-xs leading-relaxed ${DIFF_ROW_CLASS[r.status]}`}>
           {DIFF_SIGN[r.status]} Ref{(r.after ?? r.before)?.name ? ` ${(r.after ?? r.before)!.name}` : ""}
         </div>
       ))}
@@ -131,62 +131,56 @@ function HistoryPanel(props: { projectId: string; currentProject: Project; onClo
 
   return (
     <Modal title="History" onClose={props.onClose} wide>
-      <div className="history-layout">
-        <ul className="history-list">
+      <div className="flex h-[440px]">
+        <ul className="w-[210px] shrink-0 list-none overflow-y-auto border-r border-border p-1.5 m-0">
           {revisions.map((rev) => (
             <li key={rev.id}>
               <button
-                className={`history-item${rev.id === selectedId ? " history-item-active" : ""}`}
+                className={`mb-0.5 block w-full rounded-sm px-[9px] py-2 text-left transition-colors duration-100 hover:bg-surface-hover ${
+                  rev.id === selectedId ? "!bg-primary-light" : ""
+                }`}
                 onClick={() => setSelectedId(rev.id)}
               >
-                <div className="history-item-title">{rev.label ? `🏷 ${rev.label}` : rev.author}</div>
-                <div className="history-item-sub">
+                <div className="flex items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] font-semibold text-text">
+                  {rev.label ? `🏷 ${rev.label}` : rev.author}
+                </div>
+                <div className="mt-px text-[11px] text-text-muted">
                   {rev.label ? `${rev.author} · ${rev.createdAt}` : rev.createdAt}
                 </div>
               </button>
             </li>
           ))}
-          {revisions.length === 0 && (
-            <li style={{ padding: 8, color: "var(--color-text-muted)", fontSize: 12 }}>No revisions yet.</li>
-          )}
+          {revisions.length === 0 && <li className="p-2 text-xs text-text-muted">No revisions yet.</li>}
         </ul>
-        <div className="history-detail">
-          <div className="history-detail-toolbar">
-            <div style={{ display: "flex", gap: 6, flex: 1 }}>
+        <div className="flex min-w-0 flex-1 flex-col px-3.5 py-3">
+          <div className="mb-2.5 flex items-center justify-between gap-2">
+            <div className="flex flex-1 gap-1.5">
               <input
                 key={selectedId}
                 ref={labelInputRef}
-                className="input"
+                className={`${INPUT_CLASS} flex-1`}
                 defaultValue={revisions.find((r) => r.id === selectedId)?.label ?? ""}
                 placeholder="Checkpoint name (e.g. v1.0)"
                 disabled={!selectedId}
-                style={{ flex: 1 }}
               />
-              <button className="btn btn-sm" onClick={saveLabel} disabled={!selectedId || savingLabel}>
+              <Button size="sm" onClick={saveLabel} disabled={!selectedId || savingLabel}>
                 {savingLabel ? "Saving…" : "Label"}
-              </button>
+              </Button>
             </div>
-            <button className="btn btn-primary btn-sm" onClick={restore} disabled={!selectedId || restoring}>
+            <Button variant="primary" size="sm" onClick={restore} disabled={!selectedId || restoring}>
               {restoring ? "Restoring…" : "Restore this revision"}
-            </button>
+            </Button>
           </div>
-          <div className="history-diff-box">
-            <div className="history-diff-title">Changes since this revision</div>
-            {busy ? (
-              <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Loading…</div>
-            ) : (
-              diff && <DiffSummary diff={diff} />
-            )}
+          <div className="mb-2.5 max-h-[120px] overflow-y-auto rounded-sm border border-border bg-[var(--color-bg-canvas)] px-2.5 py-2">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-text-muted">
+              Changes since this revision
+            </div>
+            {busy ? <div className="text-xs text-text-muted">Loading…</div> : diff && <DiffSummary diff={diff} />}
           </div>
-          <textarea
-            readOnly
-            className="textarea textarea-code"
-            value={busy ? "Loading…" : preview}
-            style={{ flex: 1 }}
-          />
+          <textarea readOnly className={`${TEXTAREA_CODE_CLASS} flex-1`} value={busy ? "Loading…" : preview} />
         </div>
       </div>
-      {error && <div className="modal-error">{error}</div>}
+      {error && <ErrorText>{error}</ErrorText>}
     </Modal>
   );
 }

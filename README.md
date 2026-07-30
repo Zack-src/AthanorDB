@@ -77,6 +77,16 @@ Dump every project to a `.dbml` file (defaults to `./backups/<timestamp>/`):
 npm run backup [-- <outputDir>]
 ```
 
+### First admin account
+
+Every account besides the first is created by accepting an admin-issued invitation, so bootstrap the first global admin directly:
+
+```bash
+npm run bootstrap-admin -- <email> <password>
+```
+
+Password needs 8+ chars. Respects `ATHANORDB_DB_PATH` same as the server. Fails if that email already exists — run once, then invite everyone else from the admin console.
+
 ## Repo layout
 
 ```

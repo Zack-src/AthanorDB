@@ -1,0 +1,220 @@
+import { useCallback, useMemo, useRef, useState } from "react";
+import * as Y from "yjs";
+import { applyNodeChanges, type NodeChange } from "@xyflow/react";
+import {
+  getMetaMap,
+  getRefsMap,
+  getStickyNotesMap,
+  getTablesMap,
+  getZonesMap,
+  type Comment,
+  type Field,
+  type Project,
+} from "@athanordb/shared";
+import { DEFAULT_PALETTE } from "../ColorSwatchPicker.js";
+import type { ZoneNodeType } from "../ZoneNode.js";
+import type { TableNodeType } from "../TableNode.js";
+import type { StickyNoteNodeType } from "../StickyNoteNode.js";
+import type { CursorNodeType } from "../CursorNode.js";
+import type { CanvasNode } from "../types.js";
+import { DEFAULT_TABLE_HEIGHT, DEFAULT_TABLE_WIDTH } from "../refGeometry.js";
+
+/**
+ * Builds the React Flow node array (zones, tables, sticky notes — in that
+ * paint order so tables/notes drag on top of zones) from the live Yjs
+ * project, wiring each node's `data` callbacks straight to doc mutations.
+ * Also owns the local, controlled node state React Flow needs to show live
+ * drag position: `builtNodes` (source of truth from the doc) only updates
+ * once a drag commits, so without a local copy the node would visually snap
+ * around mid-drag.
+ */
+export function useCanvasNodes(liveProject: Project | null, doc: Y.Doc | null, refFieldIdsByTable: Map<string, Set<string>>, user: string, highlightLinks: boolean) {
+  const builtNodes: CanvasNode[] = useMemo(() => {
+    if (!liveProject || !doc) return [];
+
+    const palette = liveProject.paletteColors ?? DEFAULT_PALETTE;
+    const onPaletteChange = (next: string[]) => {
+      getMetaMap(doc).set("paletteColors", next);
+    };
+
+    const zoneNodes: ZoneNodeType[] = liveProject.zones.map((zone) => ({
+      id: zone.id,
+      position: zone.position,
+      width: zone.size.width,
+      height: zone.size.height,
+      type: "zone",
+      data: {
+        zone,
+        palette,
+        onPaletteChange,
+        onLabelChange: (label: string) => {
+          const zones = getZonesMap(doc);
+          const current = zones.get(zone.id);
+          if (current) zones.set(zone.id, { ...current, label });
+        },
+        onColorChange: (color: string) => {
+          const zones = getZonesMap(doc);
+          const current = zones.get(zone.id);
+          if (current) zones.set(zone.id, { ...current, style: { ...current.style, color } });
+        },
+        onResize: (position, size) => {
+          const zones = getZonesMap(doc);
+          const current = zones.get(zone.id);
+          if (current) zones.set(zone.id, { ...current, position, size });
+        },
+      },
+    }));
+
+    const tableNodes: TableNodeType[] = liveProject.tables.map((table) => ({
+      id: table.id,
+      position: table.position,
+      type: "table",
+      data: {
+        table,
+        refFieldIds: refFieldIdsByTable.get(table.id) ?? new Set(),
+        highlightLinks,
+        currentUser: user,
+        palette,
+        onPaletteChange,
+        onRename: (name: string) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (current) tables.set(table.id, { ...current, name });
+        },
+        onStyleChange: (color?: string, borderColor?: string) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (current) tables.set(table.id, { ...current, style: { color, borderColor } });
+        },
+        onAddComment: (text: string, fieldId?: string) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          const comment: Comment = { id: crypto.randomUUID(), author: user, text, createdAt: new Date().toISOString(), fieldId };
+          tables.set(table.id, { ...current, comments: [...(current.comments ?? []), comment] });
+        },
+        onDeleteComment: (commentId: string) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          tables.set(table.id, { ...current, comments: (current.comments ?? []).filter((c) => c.id !== commentId) });
+        },
+        onUpdateField: (fieldId: string, updates: Partial<Field>) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          const updatedFields = current.fields.map((f) => (f.id === fieldId ? { ...f, ...updates } : f));
+          tables.set(table.id, { ...current, fields: updatedFields });
+        },
+        onAddField: (fieldData: Omit<Field, "id">) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          const newField: Field = { id: crypto.randomUUID(), ...fieldData };
+          tables.set(table.id, { ...current, fields: [...current.fields, newField] });
+        },
+        onDeleteField: (fieldId: string) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          const updatedFields = current.fields.filter((f) => f.id !== fieldId);
+          const refs = getRefsMap(doc);
+          doc.transact(() => {
+            for (const [refId, ref] of refs.entries()) {
+              if (
+                (ref.from.tableId === table.id && ref.from.fieldId === fieldId) ||
+                (ref.to.tableId === table.id && ref.to.fieldId === fieldId)
+              ) {
+                refs.delete(refId);
+              }
+            }
+            tables.set(table.id, { ...current, fields: updatedFields });
+          });
+        },
+      },
+    }));
+
+    const stickyNodes: StickyNoteNodeType[] = liveProject.stickyNotes.map((note) => ({
+      id: note.id,
+      position: note.position,
+      width: note.size.width,
+      height: note.size.height,
+      type: "sticky",
+      data: {
+        note,
+        palette,
+        onPaletteChange,
+        onTextChange: (text: string) => {
+          const stickyNotes = getStickyNotesMap(doc);
+          const current = stickyNotes.get(note.id);
+          if (current) stickyNotes.set(note.id, { ...current, text });
+        },
+        onColorChange: (color: string) => {
+          const stickyNotes = getStickyNotesMap(doc);
+          const current = stickyNotes.get(note.id);
+          if (current) stickyNotes.set(note.id, { ...current, style: { ...current.style, color } });
+        },
+        onResize: (position, size) => {
+          const stickyNotes = getStickyNotesMap(doc);
+          const current = stickyNotes.get(note.id);
+          if (current) stickyNotes.set(note.id, { ...current, position, size });
+        },
+      },
+    }));
+
+    return [...zoneNodes, ...tableNodes, ...stickyNodes];
+  }, [liveProject, doc, refFieldIdsByTable, user, highlightLinks]);
+
+  // Resetting during render (React's documented pattern for "adjust state
+  // when an input changes") rather than in an effect avoids an extra render pass.
+  const [nodes, setNodes] = useState<CanvasNode[]>(builtNodes);
+  const [prevBuiltNodes, setPrevBuiltNodes] = useState(builtNodes);
+  if (builtNodes !== prevBuiltNodes) {
+    setPrevBuiltNodes(builtNodes);
+    setNodes(builtNodes);
+  }
+
+  const onNodesChange = useCallback(
+    // Typed against AllNodes since this is React Flow's nodes-prop change
+    // handler and cursor nodes ride along in that same array — but cursor
+    // nodes are always non-interactive (draggable/selectable/deletable:
+    // false), so they never actually produce a change event; safe to narrow
+    // back to CanvasNode for the part of this function that persists to the doc.
+    (changes: NodeChange<CanvasNode | CursorNodeType>[]) => {
+      setNodes((nds) => applyNodeChanges(changes as NodeChange<CanvasNode>[], nds));
+      if (!doc) return;
+      const tables = getTablesMap(doc);
+      const zones = getZonesMap(doc);
+      const stickyNotes = getStickyNotesMap(doc);
+      for (const change of changes) {
+        if (change.type === "position" && change.position && change.dragging === false) {
+          if (tables.has(change.id)) {
+            const current = tables.get(change.id);
+            if (current) tables.set(change.id, { ...current, position: change.position });
+          } else if (zones.has(change.id)) {
+            const current = zones.get(change.id);
+            if (current) zones.set(change.id, { ...current, position: change.position });
+          } else if (stickyNotes.has(change.id)) {
+            const current = stickyNotes.get(change.id);
+            if (current) stickyNotes.set(change.id, { ...current, position: change.position });
+          }
+        } else if (change.type === "remove") {
+          if (tables.has(change.id)) {
+            tables.delete(change.id);
+            const refs = getRefsMap(doc);
+            for (const [refId, ref] of refs.entries()) {
+              if (ref.from.tableId === change.id || ref.to.tableId === change.id) refs.delete(refId);
+            }
+          } else if (zones.has(change.id)) {
+            zones.delete(change.id);
+          } else if (stickyNotes.has(change.id)) {
+            stickyNotes.delete(change.id);
+          }
+        }
+      }
+    },
+    [doc],
+  );
+
+  return { nodes, onNodesChange };
+}

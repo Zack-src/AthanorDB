@@ -41,3 +41,14 @@ export function loadHighlightLinks(): boolean {
 export function saveHighlightLinks(val: boolean): void {
   localStorage.setItem(HIGHLIGHT_LINKS_KEY, String(val));
 }
+
+export const SHOW_MINIMAP_KEY = "athanordb.showMinimap";
+
+export function loadShowMinimap(): boolean {
+  const saved = localStorage.getItem(SHOW_MINIMAP_KEY);
+  return saved !== null ? saved === "true" : true;
+}
+
+export function saveShowMinimap(val: boolean): void {
+  localStorage.setItem(SHOW_MINIMAP_KEY, String(val));
+}

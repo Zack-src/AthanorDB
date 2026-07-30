@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { Modal } from "./Modal.js";
+import { Button } from "./ui/Button.js";
+import { Field } from "./ui/Field.js";
+import { ErrorText, Hint } from "./ui/Alert.js";
 
 /** Self-service password change — requires the current password, unlike the admin reset in AdminConsole. */
 function ChangePasswordModal(props: { onClose: () => void }) {
@@ -41,48 +44,35 @@ function ChangePasswordModal(props: { onClose: () => void }) {
   return (
     <Modal title="Change password" onClose={props.onClose}>
       {done ? (
-        <p className="modal-hint">Password changed.</p>
+        <Hint>Password changed.</Hint>
       ) : (
         <>
-          <label className="auth-field">
-            Current password
-            <input
-              className="input"
-              type="password"
-              autoFocus
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </label>
-          <label className="auth-field">
-            New password
-            <input
-              className="input"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-          </label>
-          <label className="auth-field">
-            Confirm new password
-            <input
-              className="input"
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              autoComplete="new-password"
-            />
-          </label>
-          <button
-            className="btn btn-primary"
-            onClick={submit}
-            disabled={busy || !currentPassword || !newPassword || !confirm}
-          >
+          <Field
+            label="Current password"
+            type="password"
+            autoFocus
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+          <Field
+            label="New password"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+          <Field
+            label="Confirm new password"
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            autoComplete="new-password"
+          />
+          <Button variant="primary" onClick={submit} disabled={busy || !currentPassword || !newPassword || !confirm}>
             {busy ? "Changing…" : "Change password"}
-          </button>
-          {error && <div className="modal-error">{error}</div>}
+          </Button>
+          {error && <ErrorText>{error}</ErrorText>}
         </>
       )}
     </Modal>

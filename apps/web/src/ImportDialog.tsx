@@ -1,6 +1,9 @@
 import { useRef, useState } from "react";
 import { UploadIcon } from "./Icons.js";
 import { Modal, FormatSelect } from "./Modal.js";
+import { Button } from "./ui/Button.js";
+import { ErrorText, Hint } from "./ui/Alert.js";
+import { TEXTAREA_CODE_CLASS } from "./ui/inputStyles.js";
 import type { ExportFormat, SqlDialect } from "./types.js";
 
 function ImportDialog(props: { projectId: string; onClose: () => void }) {
@@ -47,42 +50,41 @@ function ImportDialog(props: { projectId: string; onClose: () => void }) {
 
   return (
     <Modal title="Import schema" onClose={props.onClose}>
-      <p className="modal-hint">
+      <Hint>
         Matches tables/fields by name — existing positions and detail levels are kept; anything no longer in the source
         is removed.
-      </p>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+      </Hint>
+      <div className="mb-2.5 flex items-center gap-2">
         <FormatSelect value={format} onChange={setFormat} />
         <input
           ref={fileInputRef}
           type="file"
           accept=".dbml,.sql,.txt"
-          style={{ display: "none" }}
+          className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) handleFile(file);
             e.target.value = "";
           }}
         />
-        <button className="btn" onClick={() => fileInputRef.current?.click()}>
+        <Button onClick={() => fileInputRef.current?.click()}>
           <UploadIcon size={13} /> {fileName ?? "Choose file…"}
-        </button>
-        <span style={{ flex: 1 }} />
-        <button className="btn btn-primary" onClick={submit} disabled={busy || !source.trim()}>
+        </Button>
+        <span className="flex-1" />
+        <Button variant="primary" onClick={submit} disabled={busy || !source.trim()}>
           {busy ? "Importing…" : "Import"}
-        </button>
+        </Button>
       </div>
       <textarea
-        className="textarea textarea-code"
+        className={`${TEXTAREA_CODE_CLASS} h-80 w-full`}
         value={source}
         onChange={(e) => {
           setSource(e.target.value);
           setFileName(null);
         }}
         placeholder={format === "dbml" ? "Paste DBML, or choose a .dbml/.sql file…" : "Paste SQL DDL, or choose a .dbml/.sql file…"}
-        style={{ width: "100%", height: 320 }}
       />
-      {error && <div className="modal-error">{error}</div>}
+      {error && <ErrorText>{error}</ErrorText>}
     </Modal>
   );
 }

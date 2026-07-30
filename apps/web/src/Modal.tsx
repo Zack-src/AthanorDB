@@ -1,5 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { CloseIcon } from "./Icons.js";
+import { Button } from "./ui/Button.js";
+import { INPUT_CLASS } from "./ui/inputStyles.js";
 import type { ExportFormat } from "./types.js";
 
 export function Modal(props: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
@@ -12,21 +14,24 @@ export function Modal(props: { title: string; onClose: () => void; children: Rea
   }, [onClose]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[1000] flex animate-overlay-in items-center justify-center bg-[rgba(20,23,30,0.45)] backdrop-blur-[2px]"
+      onClick={onClose}
+    >
       <div
-        className={`modal${props.wide ? " modal-wide" : ""}`}
+        className={`flex max-h-[86vh] w-[640px] max-w-[92vw] animate-modal-in flex-col overflow-hidden rounded-lg bg-surface shadow-lg ${props.wide ? "w-[760px]" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={props.title}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-header">
-          <span className="modal-title">{props.title}</span>
-          <button className="btn btn-icon btn-ghost" onClick={onClose} title="Close">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-[18px] py-3.5">
+          <span className="text-[15px] font-bold tracking-[-0.01em]">{props.title}</span>
+          <Button variant="ghost" size="icon" onClick={onClose} data-tooltip="Close">
             <CloseIcon size={16} />
-          </button>
+          </Button>
         </div>
-        <div className="modal-body">{props.children}</div>
+        <div className="overflow-y-auto p-[18px]">{props.children}</div>
       </div>
     </div>
   );
@@ -34,7 +39,7 @@ export function Modal(props: { title: string; onClose: () => void; children: Rea
 
 export function FormatSelect(props: { value: ExportFormat; onChange: (v: ExportFormat) => void; includeImageFormats?: boolean }) {
   return (
-    <select className="select" value={props.value} onChange={(e) => props.onChange(e.target.value as ExportFormat)}>
+    <select className={INPUT_CLASS} value={props.value} onChange={(e) => props.onChange(e.target.value as ExportFormat)}>
       <option value="dbml">DBML</option>
       <option value="postgres">SQL — Postgres</option>
       <option value="mysql">SQL — MySQL</option>

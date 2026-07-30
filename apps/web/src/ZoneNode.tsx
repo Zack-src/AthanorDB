@@ -66,7 +66,7 @@ function ZoneNodeImpl({ data, selected }: NodeProps<ZoneNodeType>) {
               }}
             />
           ) : (
-            <span className="zone-node-label" style={{ color }} title="Double-click to rename">
+            <span className="zone-node-label" style={{ color }} data-tooltip="Double-click to rename">
               {zone.label}
             </span>
           )}
@@ -76,7 +76,7 @@ function ZoneNodeImpl({ data, selected }: NodeProps<ZoneNodeType>) {
             palette={data.palette}
             onPaletteChange={data.onPaletteChange}
             triggerClassName="zone-node-swatch"
-            title="Zone color"
+            tooltip="Zone color"
           />
         </div>
       </div>

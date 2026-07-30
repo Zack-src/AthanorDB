@@ -17,8 +17,8 @@ import { RefEdge, type RefEdgeType } from "./RefEdge.js";
 import { ZoneNode } from "./ZoneNode.js";
 import { StickyNoteNode } from "./StickyNoteNode.js";
 import { CursorNode, type CursorNodeType } from "./CursorNode.js";
-import { FrameIcon, LinkIcon, NoteIcon, TableIcon } from "./Icons.js";
-import { loadViewport, viewportKey } from "./localPrefs.js";
+import { FrameIcon, LinkIcon, MinimapIcon, NoteIcon, TableIcon } from "./Icons.js";
+import { loadShowMinimap, loadViewport, saveShowMinimap, viewportKey } from "./localPrefs.js";
 import type { AllNodes, CanvasExportHandle, CanvasNode } from "./types.js";
 
 const nodeTypes = { table: TableNode, zone: ZoneNode, sticky: StickyNoteNode, cursor: CursorNode };
@@ -89,6 +89,7 @@ export function CanvasArea(props: {
 }) {
   const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow();
   const [menu, setMenu] = useState<CanvasContextMenuState | null>(null);
+  const [showMinimap, setShowMinimap] = useState(loadShowMinimap);
   // Lazy initializer: read once at mount, not on every render — this decides
   // whether the very first render asks React Flow to `fitView` or restore
   // exactly where this user left the canvas last time.
@@ -134,6 +135,14 @@ export function CanvasArea(props: {
 
   const closeMenu = useCallback(() => setMenu(null), []);
 
+  const toggleMinimap = useCallback(() => {
+    setShowMinimap((v) => {
+      const next = !v;
+      saveShowMinimap(next);
+      return next;
+    });
+  }, []);
+
   const handleNodeMouseEnter = useCallback(
     (_e: ReactMouseEvent, node: AllNodes) => {
       if (node.type === "table") props.onTableHoverChange(node.id);
@@ -171,6 +180,21 @@ export function CanvasArea(props: {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [menu, closeMenu]);
+
+  // React Flow's built-in Controls buttons (fit view, toggle interactivity)
+  // set their own native `title`, which reads inconsistently with the rest
+  // of the app's themed tooltips — relabel them to `data-tooltip` so
+  // <GlobalTooltip> picks them up instead. Runs once after mount; these
+  // buttons don't change identity afterwards.
+  useEffect(() => {
+    const buttons = document.querySelectorAll<HTMLElement>(".react-flow__controls-button[title]");
+    for (const btn of buttons) {
+      const title = btn.getAttribute("title");
+      if (!title) continue;
+      btn.removeAttribute("title");
+      btn.setAttribute("data-tooltip", title);
+    }
+  }, []);
 
   const nodes: AllNodes[] = [...props.nodes, ...props.cursorNodes];
 
@@ -214,7 +238,7 @@ export function CanvasArea(props: {
         <Controls showZoom={false}>
           <ControlButton
             onClick={() => props.onHighlightLinksChange(!props.highlightLinks)}
-            title={props.highlightLinks ? "Masquer la mise en évidence des liens et cardinalités" : "Mettre en évidence les liens et cardinalités"}
+            data-tooltip={props.highlightLinks ? "Masquer la mise en évidence des liens et cardinalités" : "Mettre en évidence les liens et cardinalités"}
             aria-label="Toggle link highlight"
             style={{
               color: props.highlightLinks ? "#818cf8" : undefined,
@@ -224,8 +248,22 @@ export function CanvasArea(props: {
           >
             <LinkIcon size={14} />
           </ControlButton>
+          <ControlButton
+            onClick={toggleMinimap}
+            data-tooltip={showMinimap ? "Masquer la minimap" : "Afficher la minimap"}
+            aria-label="Toggle minimap"
+            style={{
+              color: showMinimap ? "#818cf8" : undefined,
+              borderColor: showMinimap ? "#6366f1" : undefined,
+              background: showMinimap ? "rgba(99, 102, 241, 0.25)" : undefined,
+            }}
+          >
+            <MinimapIcon size={14} />
+          </ControlButton>
         </Controls>
-        <MiniMap pannable zoomable bgColor="#1f2024" nodeColor="#4b4d8a" maskColor="rgba(23,24,27,0.75)" />
+        {showMinimap && (
+          <MiniMap pannable zoomable bgColor="#1f2024" nodeColor="#4b4d8a" maskColor="rgba(23,24,27,0.75)" />
+        )}
       </ReactFlow>
       {menu && (
         <CanvasContextMenu

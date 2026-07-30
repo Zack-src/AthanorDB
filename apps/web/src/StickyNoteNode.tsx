@@ -49,7 +49,7 @@ function StickyNoteNodeImpl({ data, selected }: NodeProps<StickyNoteNodeType>) {
             palette={data.palette}
             onPaletteChange={data.onPaletteChange}
             triggerClassName="sticky-node-swatch"
-            title="Note color"
+            tooltip="Note color"
           />
         </div>
       </div>

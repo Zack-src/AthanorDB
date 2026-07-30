@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Modal } from "./Modal.js";
 import { PlusIcon, TrashIcon } from "./Icons.js";
+import { Button } from "./ui/Button.js";
+import { Hint, ErrorText } from "./ui/Alert.js";
+import { List, ListMain, ListRow, EmptyState } from "./ui/List.js";
+import { INPUT_CLASS } from "./ui/inputStyles.js";
 import type { PermissionLevel, ProjectSummary, ProjectTeamGrant, TeamSummary } from "./types.js";
 
 const PERMISSION_LEVELS: PermissionLevel[] = ["view", "edit", "administrator"];
@@ -62,12 +66,12 @@ function ProjectTeamsModal(props: { project: ProjectSummary; onClose: () => void
 
   return (
     <Modal title={`Teams — ${props.project.name}`} onClose={props.onClose}>
-      <p className="modal-hint">
+      <Hint>
         A project with no team assigned is visible to everyone. Assigning a team restricts it to that team's members
         (plus the creator and admins).
-      </p>
-      <div className="project-create-row">
-        <select className="select" value={pickTeamId} onChange={(e) => setPickTeamId(e.target.value)}>
+      </Hint>
+      <div className="mb-7 flex max-w-[420px] gap-2">
+        <select className={INPUT_CLASS} value={pickTeamId} onChange={(e) => setPickTeamId(e.target.value)}>
           <option value="">Assign a team…</option>
           {availableTeams.map((t) => (
             <option key={t.id} value={t.id}>
@@ -75,29 +79,29 @@ function ProjectTeamsModal(props: { project: ProjectSummary; onClose: () => void
             </option>
           ))}
         </select>
-        <select className="select" value={pickPermission} onChange={(e) => setPickPermission(e.target.value as PermissionLevel)}>
+        <select className={INPUT_CLASS} value={pickPermission} onChange={(e) => setPickPermission(e.target.value as PermissionLevel)}>
           {PERMISSION_LEVELS.map((level) => (
             <option key={level} value={level}>
               {level}
             </option>
           ))}
         </select>
-        <button className="btn btn-primary" onClick={assign} disabled={!pickTeamId}>
+        <Button variant="primary" onClick={assign} disabled={!pickTeamId}>
           <PlusIcon size={14} /> Assign
-        </button>
+        </Button>
       </div>
-      {error && <div className="modal-error">{error}</div>}
+      {error && <ErrorText>{error}</ErrorText>}
       {grants.length === 0 ? (
-        <div className="empty-state">No teams assigned — visible to everyone.</div>
+        <EmptyState>No teams assigned — visible to everyone.</EmptyState>
       ) : (
-        <div className="admin-list">
+        <List>
           {grants.map((g) => (
-            <div key={g.teamId} className="admin-list-row">
-              <div className="admin-list-main">
+            <ListRow key={g.teamId}>
+              <ListMain>
                 <span>{g.teamName}</span>
-              </div>
+              </ListMain>
               <select
-                className="select"
+                className={INPUT_CLASS}
                 value={g.permission}
                 onChange={(e) => setPermission(g.teamId, e.target.value as PermissionLevel)}
               >
@@ -107,12 +111,12 @@ function ProjectTeamsModal(props: { project: ProjectSummary; onClose: () => void
                   </option>
                 ))}
               </select>
-              <button className="btn btn-icon btn-ghost" title="Unassign" onClick={() => unassign(g.teamId)}>
+              <Button variant="ghost" size="icon" data-tooltip="Unassign" onClick={() => unassign(g.teamId)}>
                 <TrashIcon size={13} />
-              </button>
-            </div>
+              </Button>
+            </ListRow>
           ))}
-        </div>
+        </List>
       )}
     </Modal>
   );

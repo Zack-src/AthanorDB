@@ -11,7 +11,7 @@ function initials(name: string): string {
 
 function Avatar(props: { name: string; color: string }) {
   return (
-    <span className="presence-avatar" style={{ background: props.color }} title={props.name}>
+    <span className="presence-avatar" style={{ background: props.color }} data-tooltip={props.name}>
       {initials(props.name)}
     </span>
   );

@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { ArchiveIcon, FolderIcon, PencilIcon, PlusIcon, RestoreIcon, TrashIcon, UsersIcon } from "./Icons.js";
-import { Modal } from "./Modal.js";
+import { PlusIcon, TrashIcon } from "./Icons.js";
 import { ProjectTeamsModal } from "./ProjectTeamsModal.js";
+import { PROJECT_SECTIONS, ProjectTabs } from "./projectList/ProjectTabs.js";
+import { ProjectCard } from "./projectList/ProjectCard.js";
+import { DeleteProjectModal } from "./projectList/DeleteProjectModal.js";
+import { EmptyTrashModal } from "./projectList/EmptyTrashModal.js";
+import { Button } from "./ui/Button.js";
+import { ErrorText } from "./ui/Alert.js";
+import { EmptyState } from "./ui/List.js";
+import { INPUT_CLASS } from "./ui/inputStyles.js";
 import type { ProjectStatus, ProjectSummary } from "./types.js";
-
-const SECTIONS: { key: ProjectStatus; label: string; empty: string }[] = [
-  { key: "active", label: "Projects", empty: "No projects yet — create one above to get started." },
-  { key: "archived", label: "Archive", empty: "Archive is empty." },
-  { key: "trashed", label: "Trash", empty: "Trash is empty." },
-];
 
 export function ProjectList(props: {
   projects: ProjectSummary[];
@@ -32,7 +33,6 @@ export function ProjectList(props: {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [teamsTarget, setTeamsTarget] = useState<ProjectSummary | null>(null);
   const [emptyTrashOpen, setEmptyTrashOpen] = useState(false);
-  const [emptyTrashConfirm, setEmptyTrashConfirm] = useState("");
   const [emptyTrashError, setEmptyTrashError] = useState<string | null>(null);
   const [emptyTrashBusy, setEmptyTrashBusy] = useState(false);
 
@@ -61,7 +61,7 @@ export function ProjectList(props: {
     else setDeleteTarget(null);
   };
 
-  const current = SECTIONS.find((s) => s.key === section)!;
+  const current = PROJECT_SECTIONS.find((s) => s.key === section)!;
   const visible = projects.filter((p) => p.status === section);
   const openable = section !== "trashed";
   // Only projects this user can actually hard-delete — mirrors the per-card
@@ -69,18 +69,7 @@ export function ProjectList(props: {
   // reject anyway.
   const trashedDeletable = projects.filter((p) => p.status === "trashed" && p.permission === "administrator");
 
-  const openEmptyTrashConfirm = () => {
-    setEmptyTrashError(null);
-    setEmptyTrashConfirm("");
-    setEmptyTrashOpen(true);
-  };
-
-  // Typing the exact word is the guard against "misclick nukes everything" —
-  // a click-through confirm modal is not enough friction for an action this
-  // destructive and irreversible.
-  const EMPTY_TRASH_CONFIRM_WORD = "SUPPRIMER";
   const confirmEmptyTrash = async () => {
-    if (emptyTrashConfirm !== EMPTY_TRASH_CONFIRM_WORD) return;
     setEmptyTrashBusy(true);
     const err = await onEmptyTrash(trashedDeletable);
     setEmptyTrashBusy(false);
@@ -89,245 +78,81 @@ export function ProjectList(props: {
   };
 
   return (
-    <div className="project-list-page">
-      <div className="project-list-inner">
-        <h1 className="project-list-heading">Projects</h1>
-        <p className="project-list-sub">DBML-native schema diagrams, versioned and shared live.</p>
-        <div className="project-create-row">
+    <div className="h-full overflow-y-auto px-6 py-12">
+      <div className="mx-auto max-w-[880px]">
+        <h1 className="mb-1 text-[22px] font-bold tracking-[-0.01em]">Projects</h1>
+        <p className="mb-6 text-[13.5px] text-text-muted">DBML-native schema diagrams, versioned and shared live.</p>
+        <div className="mb-7 flex max-w-[420px] gap-2">
           <input
-            className="input"
+            className={`${INPUT_CLASS} flex-1`}
             placeholder="New project name"
             value={newName}
             onChange={(e) => onNewNameChange(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onCreate()}
             maxLength={200}
           />
-          <button className="btn btn-primary" onClick={onCreate}>
+          <Button variant="primary" onClick={onCreate}>
             <PlusIcon size={14} /> Create
-          </button>
+          </Button>
         </div>
-        {createError && <div className="modal-error">{createError}</div>}
-        <div className="project-tabs">
-          {SECTIONS.map((s) => {
-            const count = projects.filter((p) => p.status === s.key).length;
-            return (
-              <button
-                key={s.key}
-                className={`project-tab${section === s.key ? " project-tab-active" : ""}`}
-                onClick={() => setSection(s.key)}
-              >
-                {s.label}
-                {count > 0 && <span className="project-tab-count">{count}</span>}
-              </button>
-            );
-          })}
-        </div>
+        {createError && <ErrorText>{createError}</ErrorText>}
+        <ProjectTabs projects={projects} section={section} onSectionChange={setSection} />
         {section === "trashed" && trashedDeletable.length > 0 && (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-            <button className="btn btn-danger btn-sm" onClick={openEmptyTrashConfirm}>
+          <div className="mb-2 flex justify-end">
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                setEmptyTrashError(null);
+                setEmptyTrashOpen(true);
+              }}
+            >
               <TrashIcon size={13} /> Empty trash ({trashedDeletable.length})
-            </button>
+            </Button>
           </div>
         )}
         {visible.length === 0 ? (
-          <div className="empty-state">{current.empty}</div>
+          <EmptyState>{current.empty}</EmptyState>
         ) : (
-          <div className="project-grid">
-            {visible.map((p) => {
-              const renaming = renamingId === p.id;
-              return (
-                <div
-                  key={p.id}
-                  className={`project-card${openable ? "" : " project-card-static"}`}
-                  role={openable ? "button" : undefined}
-                  tabIndex={openable ? 0 : undefined}
-                  onClick={() => openable && !renaming && onOpen(p)}
-                  onKeyDown={(e) => {
-                    if (!openable || renaming) return;
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onOpen(p);
-                    }
-                  }}
-                >
-                  <div className="project-card-top">
-                    <span className="project-card-icon">
-                      <FolderIcon size={17} />
-                    </span>
-                    {/* Server re-checks every mutating call regardless — this is UX only, never the security boundary. */}
-                    {p.permission === "administrator" && (
-                      <div className="project-card-actions">
-                        {section === "trashed" ? (
-                          <>
-                            <button
-                              className="btn btn-icon btn-ghost project-card-action"
-                              title="Restore to projects"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onSetStatus(p, "active");
-                              }}
-                            >
-                              <RestoreIcon size={13} />
-                            </button>
-                            <button
-                              className="btn btn-icon btn-ghost project-card-action"
-                              title="Delete forever"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openDeleteConfirm(p);
-                              }}
-                            >
-                              <TrashIcon size={13} />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              className="btn btn-icon btn-ghost project-card-action"
-                              title="Rename project"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startRename(p);
-                              }}
-                            >
-                              <PencilIcon size={13} />
-                            </button>
-                            <button
-                              className="btn btn-icon btn-ghost project-card-action"
-                              title="Manage teams"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTeamsTarget(p);
-                              }}
-                            >
-                              <UsersIcon size={13} />
-                            </button>
-                            {section === "archived" ? (
-                              <button
-                                className="btn btn-icon btn-ghost project-card-action"
-                                title="Restore to projects"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSetStatus(p, "active");
-                                }}
-                              >
-                                <RestoreIcon size={13} />
-                              </button>
-                            ) : (
-                              <button
-                                className="btn btn-icon btn-ghost project-card-action"
-                                title="Archive project"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSetStatus(p, "archived");
-                                }}
-                              >
-                                <ArchiveIcon size={13} />
-                              </button>
-                            )}
-                            <button
-                              className="btn btn-icon btn-ghost project-card-action"
-                              title="Move to trash"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onSetStatus(p, "trashed");
-                              }}
-                            >
-                              <TrashIcon size={13} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {renaming ? (
-                    <input
-                      autoFocus
-                      className="input project-card-name-input"
-                      value={nameDraft}
-                      maxLength={200}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => setNameDraft(e.target.value)}
-                      onBlur={() => commitRename(p)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commitRename(p);
-                        if (e.key === "Escape") {
-                          e.stopPropagation();
-                          setRenamingId(null);
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div
-                      className="project-card-name"
-                      title={openable ? "Double-click to rename" : undefined}
-                      onDoubleClick={(e) => {
-                        if (!openable) return;
-                        e.stopPropagation();
-                        startRename(p);
-                      }}
-                    >
-                      {p.name}
-                    </div>
-                  )}
-                  <div className="project-card-date">
-                    {p.created_at}
-                    {p.permission === "view" && <span className="badge-viewonly">View only</span>}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3.5">
+            {visible.map((p) => (
+              <ProjectCard
+                key={p.id}
+                project={p}
+                section={section}
+                openable={openable}
+                isRenaming={renamingId === p.id}
+                nameDraft={nameDraft}
+                onNameDraftChange={setNameDraft}
+                onOpen={() => onOpen(p)}
+                onStartRename={() => startRename(p)}
+                onCommitRename={() => commitRename(p)}
+                onCancelRename={() => setRenamingId(null)}
+                onSetStatus={(status) => onSetStatus(p, status)}
+                onDeleteForever={() => openDeleteConfirm(p)}
+                onManageTeams={() => setTeamsTarget(p)}
+              />
+            ))}
           </div>
         )}
       </div>
       {deleteTarget && (
-        <Modal title="Delete project forever" onClose={() => setDeleteTarget(null)}>
-          <p className="modal-hint">
-            Permanently delete <strong>{deleteTarget.name}</strong>? This removes its whole revision history too, and
-            can't be undone.
-          </p>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <button className="btn" onClick={() => setDeleteTarget(null)} disabled={deleteBusy}>
-              Cancel
-            </button>
-            <button className="btn btn-danger" onClick={confirmDelete} disabled={deleteBusy}>
-              {deleteBusy ? "Deleting…" : "Delete forever"}
-            </button>
-          </div>
-          {deleteError && <div className="modal-error">{deleteError}</div>}
-        </Modal>
+        <DeleteProjectModal
+          target={deleteTarget}
+          busy={deleteBusy}
+          error={deleteError}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
+        />
       )}
       {emptyTrashOpen && (
-        <Modal title="Empty trash" onClose={() => !emptyTrashBusy && setEmptyTrashOpen(false)}>
-          <p className="modal-hint">
-            Permanently delete <strong>{trashedDeletable.length}</strong> project(s) in the trash, including their
-            whole revision history. This can't be undone.
-          </p>
-          <p className="modal-hint">
-            Type <strong>{EMPTY_TRASH_CONFIRM_WORD}</strong> to confirm.
-          </p>
-          <input
-            autoFocus
-            className="input"
-            value={emptyTrashConfirm}
-            onChange={(e) => setEmptyTrashConfirm(e.target.value)}
-            placeholder={EMPTY_TRASH_CONFIRM_WORD}
-            disabled={emptyTrashBusy}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
-            <button className="btn" onClick={() => setEmptyTrashOpen(false)} disabled={emptyTrashBusy}>
-              Cancel
-            </button>
-            <button
-              className="btn btn-danger"
-              onClick={confirmEmptyTrash}
-              disabled={emptyTrashBusy || emptyTrashConfirm !== EMPTY_TRASH_CONFIRM_WORD}
-            >
-              {emptyTrashBusy ? "Deleting…" : "Empty trash"}
-            </button>
-          </div>
-          {emptyTrashError && <div className="modal-error">{emptyTrashError}</div>}
-        </Modal>
+        <EmptyTrashModal
+          count={trashedDeletable.length}
+          busy={emptyTrashBusy}
+          error={emptyTrashError}
+          onConfirm={confirmEmptyTrash}
+          onClose={() => setEmptyTrashOpen(false)}
+        />
       )}
       {teamsTarget && <ProjectTeamsModal project={teamsTarget} onClose={() => setTeamsTarget(null)} />}
     </div>

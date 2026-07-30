@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { DownloadIcon } from "./Icons.js";
 import { Modal, FormatSelect } from "./Modal.js";
+import { Button } from "./ui/Button.js";
+import { ErrorText, Hint } from "./ui/Alert.js";
+import { TEXTAREA_CODE_CLASS } from "./ui/inputStyles.js";
 import type { CanvasImageCapture, ExportFormat } from "./types.js";
 
 /** JPEG has no alpha channel, so the background must be painted in explicitly before drawing the (possibly-transparent) source image on top. */
@@ -115,36 +118,27 @@ function ExportDialog(props: {
 
   return (
     <Modal title="Export schema" onClose={props.onClose}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+      <div className="mb-2.5 flex items-center gap-2">
         <FormatSelect value={format} onChange={setFormat} includeImageFormats />
         {!isImage && (
-          <button className="btn" onClick={copy} disabled={busy}>
+          <Button onClick={copy} disabled={busy}>
             {copied ? "Copied" : "Copy"}
-          </button>
+          </Button>
         )}
-        <button className="btn btn-primary" onClick={download} disabled={busy || (isImage && !image)}>
+        <Button variant="primary" onClick={download} disabled={busy || (isImage && !image)}>
           <DownloadIcon size={13} /> Download
-        </button>
+        </Button>
       </div>
       {isImage ? (
-        <div className="export-image-preview">
-          {busy && <span style={{ color: "var(--color-text-muted)" }}>Rendering canvas…</span>}
-          {!busy && image && <img src={image.dataUrl} alt="Canvas snapshot preview" />}
-          {format === "pdf" && !busy && image && (
-            <p className="modal-hint" style={{ marginTop: 8 }}>
-              Downloads as a single-page PDF with this snapshot filling the page.
-            </p>
-          )}
+        <div className="flex min-h-80 flex-col items-center justify-center rounded-sm border border-border bg-[var(--color-bg-canvas)] p-3">
+          {busy && <span className="text-text-muted">Rendering canvas…</span>}
+          {!busy && image && <img src={image.dataUrl} alt="Canvas snapshot preview" className="max-h-[296px] max-w-full rounded-sm shadow-sm" />}
+          {format === "pdf" && !busy && image && <Hint>Downloads as a single-page PDF with this snapshot filling the page.</Hint>}
         </div>
       ) : (
-        <textarea
-          readOnly
-          className="textarea textarea-code"
-          value={busy ? "Loading…" : text}
-          style={{ width: "100%", height: 320 }}
-        />
+        <textarea readOnly className={`${TEXTAREA_CODE_CLASS} h-80 w-full`} value={busy ? "Loading…" : text} />
       )}
-      {error && <div className="modal-error">{error}</div>}
+      {error && <ErrorText>{error}</ErrorText>}
     </Modal>
   );
 }

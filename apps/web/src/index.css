@@ -1,5 +1,9 @@
 /* AthanorDB design system. System font stack only (no CDN — self-hosted/local-first). Dark theme only. */
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --font-sans:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji",
@@ -76,6 +80,50 @@ textarea {
   color: inherit;
 }
 
+/* Tailwind's preflight is disabled app-wide (it fights the canvas/React
+   Flow CSS that hasn't moved to Tailwind), so native button chrome
+   (OS-drawn 3D border, ButtonFace background, default padding) isn't reset
+   the way it normally would be — every <button> needs this by hand instead,
+   Tailwind-converted or not. */
+button {
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+/* Same reasoning as the `button` reset above — native OS-drawn input/select
+   chrome (inset border, background, corner radius) isn't reset without
+   preflight, so it shows through underneath the Tailwind border/radius
+   classes instead of a single flat one. */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  background-color: transparent;
+  border-radius: 0;
+}
+
+/* Chrome/Edge paint autofilled fields (name/email fields are exactly what
+   gets suggested) with their own opaque fill behind the text via this
+   pseudo-class — a huge inset box-shadow is the only way to override it,
+   `background` alone does nothing here. Without this it shows as a
+   flashbulb-white/yellow box that clashes with the dark theme. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  box-shadow: 0 0 0 1000px var(--color-surface) inset;
+  -webkit-text-fill-color: var(--color-text);
+  caret-color: var(--color-text);
+  transition: background-color 600000s 0s, color 600000s 0s;
+}
+
 /* ---------- Buttons ---------- */
 
 .btn {
@@ -131,15 +179,6 @@ textarea {
   color: var(--color-text-on-accent);
 }
 
-.btn-ghost {
-  background: transparent;
-  border-color: transparent;
-}
-
-.btn-ghost:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
 .btn-danger {
   color: var(--color-danger);
 }
@@ -148,12 +187,6 @@ textarea {
   background: var(--color-danger-light);
   border-color: var(--color-danger);
   color: var(--color-danger);
-}
-
-.btn-active {
-  color: var(--color-primary);
-  background: var(--color-primary-light);
-  border-color: var(--color-primary-border);
 }
 
 .btn-icon {
@@ -171,8 +204,7 @@ textarea {
 /* ---------- Inputs ---------- */
 
 .input,
-.select,
-.textarea {
+.select {
   padding: 6px 10px;
   font-size: 13px;
   color: var(--color-text);
@@ -185,24 +217,15 @@ textarea {
 }
 
 .input:focus,
-.select:focus,
-.textarea:focus {
+.select:focus {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
 .input:disabled,
-.select:disabled,
-.textarea:disabled {
+.select:disabled {
   opacity: 0.6;
-}
-
-.textarea-code {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.55;
-  resize: none;
 }
 
 /* ---------- App shell ---------- */
@@ -213,464 +236,6 @@ textarea {
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
-}
-
-.app-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  height: 50px;
-  flex-shrink: 0;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-  box-shadow: var(--shadow-xs);
-  overflow-x: auto;
-  z-index: 10;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: -0.01em;
-  color: var(--color-text);
-}
-
-.brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--color-primary), #7c3aed);
-  color: white;
-}
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.status-dot-ok {
-  background: var(--color-success);
-  box-shadow: 0 0 0 3px var(--color-success-light);
-}
-
-.status-dot-down {
-  background: var(--color-danger);
-  box-shadow: 0 0 0 3px var(--color-danger-light);
-}
-
-.status-dot-checking {
-  background: var(--color-text-muted);
-}
-
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-/* ---------- Project list ---------- */
-
-.project-list-page {
-  height: 100%;
-  overflow-y: auto;
-  padding: 48px 24px;
-}
-
-.project-list-inner {
-  max-width: 880px;
-  margin: 0 auto;
-}
-
-.project-list-heading {
-  margin: 0 0 4px;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.project-list-sub {
-  margin: 0 0 24px;
-  color: var(--color-text-muted);
-  font-size: 13.5px;
-}
-
-.project-create-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 28px;
-  max-width: 420px;
-}
-
-.project-create-row .input {
-  flex: 1;
-}
-
-.project-tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 18px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.project-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 4px;
-  margin-bottom: -1px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--color-text-muted);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.project-tab + .project-tab {
-  margin-left: 14px;
-}
-
-.project-tab:hover {
-  color: var(--color-text);
-}
-
-.project-tab-active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
-}
-
-.project-tab-count {
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--color-surface-hover);
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.project-tab-active .project-tab-count {
-  background: var(--color-primary-light);
-  color: var(--color-primary);
-}
-
-.project-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
-}
-
-.project-card {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 16px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
-  cursor: pointer;
-  transition:
-    box-shadow 0.15s ease,
-    transform 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.project-card:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--color-border-strong);
-  transform: translateY(-1px);
-}
-
-.project-card-static {
-  cursor: default;
-}
-
-.project-card-static:hover {
-  box-shadow: var(--shadow-xs);
-  border-color: var(--color-border);
-  transform: none;
-}
-
-.project-card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.project-card-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  margin-bottom: 10px;
-  border-radius: var(--radius-sm);
-  background: var(--color-primary-light);
-  color: var(--color-primary);
-}
-
-.project-card-actions {
-  display: flex;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.project-card:hover .project-card-actions,
-.project-card:focus-within .project-card-actions {
-  opacity: 1;
-}
-
-.project-card-action {
-  width: 24px;
-  height: 24px;
-}
-
-.project-card-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-  margin-bottom: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-card-name-input {
-  width: 100%;
-  margin-bottom: 2px;
-  padding: 2px 6px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.project-card-date {
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.empty-state {
-  padding: 32px 16px;
-  text-align: center;
-  color: var(--color-text-muted);
-  font-size: 13px;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-/* ---------- Header groups (all toolbar controls live inside the single .app-header) ---------- */
-
-.toolbar-project-name {
-  font-weight: 600;
-  font-size: 13.5px;
-  margin-right: 6px;
-  white-space: nowrap;
-}
-
-.toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.toolbar-divider {
-  width: 1px;
-  height: 20px;
-  background: var(--color-border);
-  margin: 0 4px;
-  flex-shrink: 0;
-}
-
-.toolbar-spacer {
-  flex: 1;
-}
-
-.badge-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: var(--radius-full);
-  background: var(--color-text-muted);
-  color: white;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.badge-count-danger {
-  background: var(--color-danger);
-}
-
-/* ---------- Auth pages (Login / AcceptInvite) ---------- */
-
-.auth-page {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 340px;
-  display: flex;
-  flex-direction: column;
-  padding: 28px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-}
-
-.auth-title {
-  margin: 0 0 4px;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.auth-sub {
-  margin: 0 0 20px;
-  text-align: center;
-  color: var(--color-text-muted);
-  font-size: 13px;
-}
-
-.auth-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 14px;
-  font-size: 12.5px;
-  color: var(--color-text-muted);
-}
-
-/* ---------- Admin console ---------- */
-
-.admin-checkbox-field {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.admin-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.admin-list-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-
-.admin-list-main {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-}
-
-.admin-list-main-button {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: var(--color-text);
-  text-align: left;
-}
-
-.badge-admin {
-  padding: 1px 6px;
-  border-radius: var(--radius-full);
-  background: var(--color-primary-light);
-  color: var(--color-primary);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.badge-viewonly {
-  margin-left: 8px;
-  padding: 1px 6px;
-  border-radius: var(--radius-full);
-  background: var(--color-surface-hover);
-  color: var(--color-text-muted);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.badge-status {
-  padding: 1px 6px;
-  border-radius: var(--radius-full);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.badge-status-pending {
-  background: var(--color-warning-light);
-  color: var(--color-warning);
-}
-
-.badge-status-accepted {
-  background: var(--color-success-light);
-  color: var(--color-success);
-}
-
-.badge-status-expired {
-  background: var(--color-danger-light);
-  color: var(--color-danger);
-}
-
-.font-scale-group {
-  gap: 2px;
-}
-
-.font-scale-label {
-  font-weight: 700;
-  line-height: 1;
-}
-
-.font-scale-label-sm {
-  font-size: 11px;
-}
-
-.font-scale-label-lg {
-  font-size: 16px;
-}
-
-.font-scale-value {
-  min-width: 34px;
-  text-align: center;
-  font-size: 11.5px;
-  color: var(--color-text-muted);
 }
 
 /* ---------- Canvas ---------- */
@@ -968,97 +533,11 @@ textarea {
   background: var(--color-surface-hover);
 }
 
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.panel-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-/* Sync status pill for the live DBML editor */
-
-.sync-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  color: var(--color-text-muted);
-}
-
-.sync-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-text-muted);
-}
-
-.sync-dot-syncing {
-  background: var(--color-warning);
-  animation: pulse 1s ease-in-out infinite;
-}
-
-.sync-dot-synced {
-  background: var(--color-success);
-}
-
-.sync-dot-error {
-  background: var(--color-danger);
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
-}
-
 /* ---------- Modal ---------- */
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 23, 30, 0.45);
-  backdrop-filter: blur(2px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: overlay-in 0.12s ease;
-}
-
-@keyframes overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.modal {
-  width: 640px;
-  max-width: 92vw;
-  max-height: 86vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
-  animation: modal-in 0.14s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
+/* `modal-in` is still used by .context-menu/.color-popover/.comment-popover
+   below — Modal.tsx itself moved to Tailwind (see tailwind.config.js
+   `animate-modal-in`), but this raw-CSS keyframe stays for those three. */
 @keyframes modal-in {
   from {
     opacity: 0;
@@ -1068,214 +547,6 @@ textarea {
     opacity: 1;
     transform: none;
   }
-}
-
-.modal-wide {
-  width: 760px;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.modal-title {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.modal-body {
-  padding: 18px;
-  overflow-y: auto;
-}
-
-.modal-hint {
-  margin: 0 0 12px;
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.export-image-preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 320px;
-  padding: 12px;
-  background: var(--color-bg-canvas);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-
-.export-image-preview img {
-  max-width: 100%;
-  max-height: 296px;
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
-}
-
-.modal-error {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--color-danger-light);
-  color: var(--color-danger);
-  font-size: 12.5px;
-}
-
-/* ---------- History panel ---------- */
-
-.history-layout {
-  display: flex;
-  gap: 0;
-  height: 440px;
-}
-
-.history-list {
-  list-style: none;
-  margin: 0;
-  padding: 6px;
-  width: 210px;
-  flex-shrink: 0;
-  overflow-y: auto;
-  border-right: 1px solid var(--color-border);
-}
-
-.history-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 8px 9px;
-  margin-bottom: 2px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background 0.1s ease;
-}
-
-.history-item:hover {
-  background: var(--color-surface-hover);
-}
-
-.history-item-active {
-  background: var(--color-primary-light) !important;
-}
-
-.history-item-title {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--color-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.history-item-sub {
-  font-size: 11px;
-  color: var(--color-text-muted);
-  margin-top: 1px;
-}
-
-.history-detail {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 12px 14px;
-}
-
-.history-detail-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.history-diff-box {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-canvas);
-  padding: 8px 10px;
-  margin-bottom: 10px;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.history-diff-title {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-  margin-bottom: 4px;
-  font-weight: 600;
-}
-
-.diff-row {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.diff-added {
-  color: var(--color-success);
-}
-
-.diff-removed {
-  color: var(--color-danger);
-}
-
-.diff-changed {
-  color: var(--color-warning);
-}
-
-/* ---------- Validation ---------- */
-
-.validation-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.validation-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 9px;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.validation-row-error {
-  color: var(--color-danger);
-  background: var(--color-danger-light);
-}
-
-.validation-row-warning {
-  color: var(--color-warning);
-  background: var(--color-warning-light);
-}
-
-.validation-empty {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-success);
-  font-size: 13.5px;
-  padding: 4px 0;
 }
 
 /* ---------- Presence ---------- */
@@ -1302,21 +573,6 @@ textarea {
 
 .presence-avatar:first-child {
   margin-left: 0;
-}
-
-/* ---------- User field in header ---------- */
-
-.user-field {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.user-field .input {
-  width: 110px;
-  padding: 4px 8px;
 }
 
 /* ---------- Table node ---------- */
@@ -1469,13 +725,16 @@ textarea {
 }
 
 .field-kw-badge {
-  font-size: calc(9px * var(--canvas-font-scale));
-  font-weight: 700;
-  padding: 0.5px 4px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5px 3px;
   border-radius: var(--radius-sm);
   line-height: 1;
-  text-transform: uppercase;
-  font-family: var(--font-mono);
+}
+
+.field-kw-badge svg {
+  width: calc(11px * var(--canvas-font-scale));
+  height: calc(11px * var(--canvas-font-scale));
 }
 
 .field-kw-badge-pk {
@@ -1500,6 +759,13 @@ textarea {
   background: rgba(52, 211, 153, 0.16);
   color: var(--color-success);
   border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.field-kw-badge-note {
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--color-text-secondary);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  cursor: help;
 }
 
 .table-node-row-actions {
@@ -1949,7 +1215,16 @@ textarea {
 .react-flow__controls {
   box-shadow: var(--shadow-sm);
   border-radius: var(--radius-sm);
-  overflow: hidden;
+}
+
+.react-flow__controls .react-flow__controls-button:first-child {
+  border-top-left-radius: var(--radius-sm);
+  border-top-right-radius: var(--radius-sm);
+}
+
+.react-flow__controls .react-flow__controls-button:last-child {
+  border-bottom-left-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
 }
 
 /* Qualified with the `.react-flow__controls` ancestor (rather than just
@@ -2006,4 +1281,29 @@ textarea {
 
 *::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Custom tooltips — set `data-tooltip="..."` on any element instead of
+   `title` (optional `data-tooltip-pos="bottom|left"`, default above).
+   Rendered by <GlobalTooltip> (Tooltip.tsx) as a single `position: fixed`
+   node portaled to <body>, not a CSS pseudo-element on the element itself —
+   that way it's never clipped by an ancestor's `overflow: hidden`/`auto`
+   (the header's horizontal scroll area, React Flow's Controls panel, etc). */
+.gtooltip {
+  max-width: 240px;
+  width: max-content;
+  white-space: pre-line;
+  text-align: center;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 5px 8px;
+  pointer-events: none;
+  z-index: 3000;
 }

@@ -21,7 +21,7 @@ export function CommentThread(props: {
   onAdd: (text: string) => void;
   onDelete: (commentId: string) => void;
   triggerClassName: string;
-  title?: string;
+  tooltip?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -74,7 +74,7 @@ export function CommentThread(props: {
           toggle();
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        title={props.title ?? "Comments"}
+        data-tooltip={props.tooltip ?? "Comments"}
       >
         <CommentIcon size={12} />
         {props.comments.length > 0 && <span className="comment-count">{props.comments.length}</span>}
@@ -91,7 +91,7 @@ export function CommentThread(props: {
                     <span className="comment-item-author">{c.author}</span>
                     <span className="comment-item-time">{formatTimestamp(c.createdAt)}</span>
                     {c.author === props.currentUser && (
-                      <button className="comment-item-delete" onClick={() => props.onDelete(c.id)} title="Delete comment">
+                      <button className="comment-item-delete" onClick={() => props.onDelete(c.id)} data-tooltip="Delete comment">
                         <CloseIcon size={11} />
                       </button>
                     )}

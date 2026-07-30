@@ -10,16 +10,24 @@ import type { Project } from "@athanordb/shared";
 import { projectToDbml } from "@athanordb/dbml-engine";
 import { ChevronLeftIcon, CodeIcon } from "./Icons.js";
 import { dbmlLanguage, dbmlCompletion, athanorEditorTheme, customTabBinding } from "./codemirrorDbml.js";
+import { Button } from "./ui/Button.js";
+import { ErrorText } from "./ui/Alert.js";
 
 type SyncStatus = "idle" | "typing" | "syncing" | "synced" | "error";
 
+const DOT_TONE: Record<Exclude<SyncStatus, "idle">, string> = {
+  typing: "bg-text-muted",
+  syncing: "animate-pulse bg-warning",
+  synced: "bg-success",
+  error: "bg-danger",
+};
+
 function SyncStatusPill({ status }: { status: SyncStatus }) {
   if (status === "idle") return null;
-  const dotClass = status === "synced" ? "sync-dot-synced" : status === "error" ? "sync-dot-error" : "sync-dot-syncing";
-  const label = { idle: "", typing: "Editing…", syncing: "Syncing…", synced: "Synced", error: "Sync error" }[status];
+  const label = { typing: "Editing…", syncing: "Syncing…", synced: "Synced", error: "Sync error" }[status];
   return (
-    <span className="sync-status">
-      <span className={`sync-dot ${dotClass}`} />
+    <span className="inline-flex items-center gap-1 text-[11.5px] text-text-muted">
+      <span className={`h-1.5 w-1.5 rounded-full ${DOT_TONE[status]}`} />
       {label}
     </span>
   );
@@ -266,23 +274,23 @@ function DbmlPanel(props: { project: Project; projectId: string; onClose: () => 
         className={`side-panel-resizer ${isResizing ? "is-resizing" : ""}`}
         onMouseDown={startResizing}
         onDoubleClick={handleDoubleClickResizer}
-        title="Glisser pour redimensionner / Double-cliquer pour réinitialiser"
+        data-tooltip="Glisser pour redimensionner / Double-cliquer pour réinitialiser"
       />
-      <div className="panel-header">
-        <CodeIcon size={14} style={{ color: "var(--color-text-muted)" }} />
-        <span className="panel-title">DBML</span>
+      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
+        <CodeIcon size={14} className="text-text-muted" />
+        <span className="text-[13px] font-semibold text-text">DBML</span>
         <SyncStatusPill status={status} />
-        <span style={{ marginLeft: "auto" }} />
-        <button className="btn btn-icon btn-ghost" onClick={props.onClose} title="Collapse editor">
+        <span className="ml-auto" />
+        <Button variant="ghost" size="icon" onClick={props.onClose} data-tooltip="Collapse editor">
           <ChevronLeftIcon size={16} />
-        </button>
+        </Button>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         <CodeMirrorEditor value={text} onChange={handleChange} />
       </div>
       {error && (
-        <div className="modal-error" style={{ margin: 8, borderRadius: "var(--radius-sm)" }}>
-          {error}
+        <div className="m-2">
+          <ErrorText>{error}</ErrorText>
         </div>
       )}
     </div>

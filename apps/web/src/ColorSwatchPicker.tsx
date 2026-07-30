@@ -41,7 +41,7 @@ export function ColorSwatchPicker(props: {
   palette: string[];
   onPaletteChange: (palette: string[]) => void;
   triggerClassName: string;
-  title?: string;
+  tooltip?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [hexDraft, setHexDraft] = useState(props.value);
@@ -109,7 +109,7 @@ export function ColorSwatchPicker(props: {
           toggle();
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        title={props.title ?? "Color"}
+        data-tooltip={props.tooltip ?? "Color"}
       />
       {open &&
         popoverPos &&
@@ -127,14 +127,14 @@ export function ColorSwatchPicker(props: {
                     setOpen(false);
                   }}
                   onContextMenu={(e) => removeFromPalette(e, c)}
-                  title={`${c} (right-click to remove)`}
+                  data-tooltip={`${c} (right-click to remove)`}
                 />
               ))}
               <button
                 type="button"
                 className="color-swatch-cell color-swatch-cell-add"
                 onClick={addCurrentToPalette}
-                title="Add current color to this project's palette"
+                data-tooltip="Add current color to this project's palette"
               >
                 <PlusIcon size={11} />
               </button>
