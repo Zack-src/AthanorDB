@@ -6,6 +6,7 @@ import {
   Controls,
   ControlButton,
   MiniMap,
+  Panel,
   PanOnScrollMode,
   SelectionMode,
   type Connection,
@@ -35,6 +36,29 @@ interface CanvasContextMenuState {
   screenX: number;
   screenY: number;
   flowPosition: { x: number; y: number };
+}
+
+/** Floating swatch row shown above the canvas once 2+ tables are selected — picking a color applies it to every selected table's header at once. */
+function SelectionColorToolbar(props: { count: number; palette: string[]; onPick: (color: string) => void }) {
+  return (
+    <Panel position="top-center" className="nodrag nopan">
+      <div className="selection-color-toolbar">
+        <span className="selection-color-toolbar-label">{props.count} tables selected</span>
+        <div className="color-popover-grid selection-color-toolbar-grid">
+          {props.palette.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className="color-swatch-cell"
+              style={{ background: c }}
+              onClick={() => props.onPick(c)}
+              data-tooltip={c}
+            />
+          ))}
+        </div>
+      </div>
+    </Panel>
+  );
 }
 
 /** Right-click-on-empty-canvas menu — the only way to add a table/zone/sticky note besides editing DBML directly. */
@@ -77,6 +101,9 @@ export function CanvasArea(props: {
   onAddTable: (position: { x: number; y: number }) => void;
   onAddZone: (position: { x: number; y: number }) => void;
   onAddNote: (position: { x: number; y: number }) => void;
+  /** Applies a header color to every currently-selected table at once — shown by the selection toolbar once 2+ tables are selected. */
+  onSetTablesColor: (tableIds: string[], color: string) => void;
+  palette: string[];
   fontScale: number;
   highlightLinks: boolean;
   onHighlightLinksChange: (highlight: boolean) => void;
@@ -197,6 +224,7 @@ export function CanvasArea(props: {
   }, []);
 
   const nodes: AllNodes[] = [...props.nodes, ...props.cursorNodes];
+  const selectedTableIds = props.nodes.filter((n) => n.type === "table" && n.selected).map((n) => n.id);
 
   return (
     <div
@@ -263,6 +291,13 @@ export function CanvasArea(props: {
         </Controls>
         {showMinimap && (
           <MiniMap pannable zoomable bgColor="#1f2024" nodeColor="#4b4d8a" maskColor="rgba(23,24,27,0.75)" />
+        )}
+        {selectedTableIds.length > 1 && (
+          <SelectionColorToolbar
+            count={selectedTableIds.length}
+            palette={props.palette}
+            onPick={(color) => props.onSetTablesColor(selectedTableIds, color)}
+          />
         )}
       </ReactFlow>
       {menu && (

@@ -171,8 +171,22 @@ export function useCanvasNodes(liveProject: Project | null, doc: Y.Doc | null, r
   const [prevBuiltNodes, setPrevBuiltNodes] = useState(builtNodes);
   if (builtNodes !== prevBuiltNodes) {
     setPrevBuiltNodes(builtNodes);
-    setNodes(builtNodes);
+    // `selected` is local React Flow UI state, not part of the doc — a fresh
+    // `builtNodes` (any doc mutation, including e.g. a bulk color change
+    // applied *from* the current selection) would otherwise wipe it,
+    // dropping the selection and closing whatever UI depends on it
+    // (the multi-select color toolbar) mid-use.
+    setNodes((prevNodes) => {
+      const selectedIds = new Set(prevNodes.filter((n) => n.selected).map((n) => n.id));
+      return selectedIds.size === 0 ? builtNodes : builtNodes.map((n) => (selectedIds.has(n.id) ? { ...n, selected: true } : n));
+    });
   }
+
+  // Per zone currently being dragged: each contained table/sticky's offset
+  // from the zone's position, snapshotted once at drag start (not
+  // recomputed every frame) so the group moves rigidly together instead of
+  // members joining/leaving as the zone sweeps over them mid-drag.
+  const zoneDragMembersRef = useRef<Map<string, Map<string, { x: number; y: number }>>>(new Map());
 
   const onNodesChange = useCallback(
     // Typed against AllNodes since this is React Flow's nodes-prop change
@@ -181,12 +195,55 @@ export function useCanvasNodes(liveProject: Project | null, doc: Y.Doc | null, r
     // false), so they never actually produce a change event; safe to narrow
     // back to CanvasNode for the part of this function that persists to the doc.
     (changes: NodeChange<CanvasNode | CursorNodeType>[]) => {
-      setNodes((nds) => applyNodeChanges(changes as NodeChange<CanvasNode>[], nds));
+      // Dragging a zone also drags whatever table/sticky was inside it —
+      // synthesize a "position" change for each member, riding along with
+      // the zone's own change, so they flow through the same apply/commit
+      // logic below without duplicating it.
+      const memberChanges: NodeChange<CanvasNode>[] = [];
+      for (const change of changes) {
+        if (change.type !== "position" || !change.position) continue;
+        const zoneNode = nodes.find((n) => n.id === change.id);
+        if (!zoneNode || zoneNode.type !== "zone") continue;
+
+        let offsets = zoneDragMembersRef.current.get(zoneNode.id);
+        if (!offsets) {
+          offsets = new Map();
+          const zx = zoneNode.position.x;
+          const zy = zoneNode.position.y;
+          const zw = zoneNode.width ?? 0;
+          const zh = zoneNode.height ?? 0;
+          for (const other of nodes) {
+            if (other.type !== "table" && other.type !== "sticky") continue;
+            const w = other.measured?.width ?? (other.type === "sticky" ? other.width : undefined) ?? DEFAULT_TABLE_WIDTH;
+            const h = other.measured?.height ?? (other.type === "sticky" ? other.height : undefined) ?? DEFAULT_TABLE_HEIGHT;
+            const cx = other.position.x + w / 2;
+            const cy = other.position.y + h / 2;
+            if (cx >= zx && cx <= zx + zw && cy >= zy && cy <= zy + zh) {
+              offsets.set(other.id, { x: other.position.x - zx, y: other.position.y - zy });
+            }
+          }
+          zoneDragMembersRef.current.set(zoneNode.id, offsets);
+        }
+
+        for (const [memberId, offset] of offsets) {
+          memberChanges.push({
+            id: memberId,
+            type: "position",
+            position: { x: change.position.x + offset.x, y: change.position.y + offset.y },
+            dragging: change.dragging,
+          });
+        }
+
+        if (change.dragging === false) zoneDragMembersRef.current.delete(zoneNode.id);
+      }
+
+      const allChanges = [...(changes as NodeChange<CanvasNode>[]), ...memberChanges];
+      setNodes((nds) => applyNodeChanges(allChanges, nds));
       if (!doc) return;
       const tables = getTablesMap(doc);
       const zones = getZonesMap(doc);
       const stickyNotes = getStickyNotesMap(doc);
-      for (const change of changes) {
+      for (const change of allChanges) {
         if (change.type === "position" && change.position && change.dragging === false) {
           if (tables.has(change.id)) {
             const current = tables.get(change.id);
@@ -213,7 +270,7 @@ export function useCanvasNodes(liveProject: Project | null, doc: Y.Doc | null, r
         }
       }
     },
-    [doc],
+    [doc, nodes],
   );
 
   return { nodes, onNodesChange };

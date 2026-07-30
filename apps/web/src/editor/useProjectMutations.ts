@@ -82,6 +82,17 @@ export function useProjectMutations(liveProject: Project | null, doc: Y.Doc | nu
     });
   };
 
+  const setTablesColor = (tableIds: string[], color: string) => {
+    if (!doc || tableIds.length === 0) return;
+    const tables = getTablesMap(doc);
+    doc.transact(() => {
+      for (const id of tableIds) {
+        const current = tables.get(id);
+        if (current) tables.set(id, { ...current, style: { ...current.style, color } });
+      }
+    });
+  };
+
   const resetAllLinks = () => {
     if (!doc || !liveProject) return;
     const refs = getRefsMap(doc);
@@ -193,6 +204,7 @@ export function useProjectMutations(liveProject: Project | null, doc: Y.Doc | nu
     setAllDetailLevels,
     activeDetailLevel,
     autoLayout,
+    setTablesColor,
     resetAllLinks,
     duplicateSelected,
     onEdgesDelete,

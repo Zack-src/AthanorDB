@@ -6,6 +6,7 @@ import { useAwarenessStates } from "./useAwarenessStates.js";
 import { hashColor } from "./awarenessColor.js";
 import { CanvasArea } from "./CanvasArea.js";
 import { ChevronRightIcon } from "./Icons.js";
+import { DEFAULT_PALETTE } from "./ColorSwatchPicker.js";
 import { loadHighlightLinks, saveHighlightLinks } from "./localPrefs.js";
 import type { CanvasExportHandle, ProjectSummary } from "./types.js";
 import { useCanvasNodes } from "./editor/useCanvasNodes.js";
@@ -88,11 +89,14 @@ export function ProjectEditor(props: {
     setAllDetailLevels,
     activeDetailLevel,
     autoLayout,
+    setTablesColor,
     resetAllLinks,
     duplicateSelected,
     onEdgesDelete,
     onConnect,
   } = useProjectMutations(liveProject, doc, nodes);
+
+  const palette = liveProject?.paletteColors ?? DEFAULT_PALETTE;
 
   useEditorKeyboardShortcuts(undoManager, duplicateSelected);
 
@@ -144,6 +148,8 @@ export function ProjectEditor(props: {
             onAddTable={addTable}
             onAddZone={addZone}
             onAddNote={addStickyNote}
+            onSetTablesColor={setTablesColor}
+            palette={palette}
             fontScale={fontScale}
             highlightLinks={highlightLinks}
             onHighlightLinksChange={handleHighlightLinksChange}
