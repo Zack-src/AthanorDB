@@ -1,10 +1,16 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { config } from "./config.js";
 
-const DB_PATH = process.env.ATHANORDB_DB_PATH ?? "./data/athanordb.sqlite";
+const DB_PATH = config.dbPath;
 
-mkdirSync(dirname(DB_PATH), { recursive: true });
+try {
+  mkdirSync(dirname(DB_PATH), { recursive: true });
+} catch (err) {
+  console.error(`[db] cannot create the directory for ATHANORDB_DB_PATH (${DB_PATH}):`, err);
+  process.exit(1);
+}
 
 export const db: Database.Database = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");

@@ -59,7 +59,20 @@ npm run build
 npm start             # http://localhost:3001
 ```
 
-SQLite data location defaults to `./data/athanordb.sqlite`; override with `ATHANORDB_DB_PATH`. Port defaults to `3001`; override with `PORT`.
+### Configuration
+
+Every value is validated at startup — a malformed one exits immediately with a `[config]` message rather than silently falling back.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ATHANORDB_DB_PATH` | `./data/athanordb.sqlite` | SQLite file. Its directory is created if missing. |
+| `PORT` | `3001` | HTTP/WS port. |
+| `ATHANORDB_COOKIE_SECURE` | unset (= `false`) | Marks the session cookie `Secure`. **Set to `true` when running behind TLS** — with `NODE_ENV=production` and this unset, the server warns loudly at boot. |
+| `ATHANORDB_ALLOWED_ORIGINS` | unset | Comma-separated extra origins allowed to make state-changing requests. The app's own host is always allowed; this is only needed if the UI is served from a different origin than the API. |
+| `ATHANORDB_MAX_BODY_MB` | `4` | Max REST request body (DBML/SQL imports are the large ones). |
+| `ATHANORDB_MAX_WS_FRAME_MB` | `8` | Max size of a single WebSocket frame (one Yjs update). |
+
+`SIGTERM`/`SIGINT` shut down gracefully: connections stop, every live document is snapshotted to SQLite, then the database is closed — so `docker stop` doesn't drop the last few seconds of edits.
 
 ### Docker
 
@@ -85,7 +98,14 @@ Every account besides the first is created by accepting an admin-issued invitati
 npm run bootstrap-admin -- <email> <password>
 ```
 
-Password needs 8+ chars. Respects `ATHANORDB_DB_PATH` same as the server. Fails if that email already exists — run once, then invite everyone else from the admin console.
+Password must be 8–128 characters. Respects `ATHANORDB_DB_PATH` same as the server. Fails if that email already exists — run once, then invite everyone else from the admin console.
+
+### Accounts, teams and invitations
+
+- **Login** is email + password, with a server-side session cookie (`httpOnly`, `SameSite=Lax`, 30-day rolling expiry). Passwords are scrypt-hashed; login is rate limited to 10 attempts/minute per IP.
+- **Invitations** are the only way to create further accounts: an admin issues one from the admin console and gets back an `/invite/<token>` URL, valid 7 days. **There is no email delivery** — the admin relays that link themselves, so treat it as a live credential and send it over a channel you trust.
+- **Teams** scope project visibility. A project with no team assigned is visible to everyone; assigning a team restricts it to that team's members plus the creator and admins, at `view` / `edit` / `administrator` level.
+- **Admins** manage users, teams and invitations, and can reset any password (which also kills that user's sessions).
 
 ## Repo layout
 

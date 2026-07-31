@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { config } from "../config.js";
 import { db } from "../db.js";
 
 export interface SessionUser {
@@ -30,9 +31,10 @@ function cookieOptions(maxAgeMs: number) {
     sameSite: "lax" as const,
     path: "/",
     // Self-hosted deployments may run plain HTTP — defaulting `secure` to
-    // true would silently lock those out. Opt in via env var once TLS is in
-    // front of the app.
-    secure: process.env.ATHANORDB_COOKIE_SECURE === "true",
+    // true would silently lock those out. Opt in via ATHANORDB_COOKIE_SECURE
+    // once TLS is in front of the app (config.ts warns at boot if it's unset
+    // in production).
+    secure: config.cookieSecure,
     maxAge: Math.floor(maxAgeMs / 1000),
   };
 }
@@ -88,6 +90,16 @@ export function resolveSession(req: FastifyRequest, reply: FastifyReply): Sessio
   reply.setCookie(SESSION_COOKIE, session.id, cookieOptions(SESSION_TTL_MS));
 
   return toSessionUser(user);
+}
+
+/**
+ * Deletes rows whose expiry has passed. Sessions were previously only removed
+ * on explicit logout or an admin password reset, so the table grew forever;
+ * `resolveSession` already refuses to use an expired row, this just stops them
+ * accumulating. Returns the number of rows removed.
+ */
+export function purgeExpiredSessions(): number {
+  return db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(new Date().toISOString()).changes;
 }
 
 export function requireUser(req: FastifyRequest, reply: FastifyReply): SessionUser | null {

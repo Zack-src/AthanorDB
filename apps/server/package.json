@@ -15,6 +15,7 @@
     "@athanordb/dbml-engine": "*",
     "@athanordb/shared": "*",
     "@fastify/cookie": "^11.1.2",
+    "@fastify/rate-limit": "^11.2.0",
     "@fastify/static": "^10.1.2",
     "@fastify/websocket": "^11.0.1",
     "better-sqlite3": "^11.3.0",

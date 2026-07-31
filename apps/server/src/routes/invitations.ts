@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { db } from "../db.js";
-import { hashPassword } from "../auth/password.js";
+import { normalizeEmail } from "../auth/email.js";
+import { checkPassword, hashPassword } from "../auth/password.js";
 import { createSession, requireAdmin } from "../auth/session.js";
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -21,14 +22,16 @@ function invitationStatus(row: InvitationRow): "pending" | "accepted" | "expired
   return "pending";
 }
 
+const ACCEPT_RATE_LIMIT = { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } };
+
 export function registerInvitationRoutes(app: FastifyInstance): void {
   app.post("/api/invitations", async (req, reply) => {
     const admin = requireAdmin(req, reply);
     if (!admin) return;
 
     const { email, isAdmin } = (req.body ?? {}) as { email?: string; isAdmin?: boolean };
-    const normalized = email?.trim().toLowerCase();
-    if (!normalized || !normalized.includes("@")) {
+    const normalized = normalizeEmail(email);
+    if (!normalized) {
       reply.code(400);
       return { error: "a valid email is required" };
     }
@@ -74,7 +77,9 @@ export function registerInvitationRoutes(app: FastifyInstance): void {
   });
 
   // Public — this is the one way to create an account without already having one.
-  app.post("/api/invitations/:token/accept", async (req, reply) => {
+  // Rate limited per IP: the token is the only credential, and the route both
+  // hashes a password (expensive) and creates an account.
+  app.post("/api/invitations/:token/accept", ACCEPT_RATE_LIMIT, async (req, reply) => {
     const { token } = req.params as { token: string };
     const invitation = db
       .prepare("SELECT token, email, is_admin, invited_by, created_at, expires_at, accepted_at FROM invitations WHERE token = ?")
@@ -85,20 +90,47 @@ export function registerInvitationRoutes(app: FastifyInstance): void {
     }
 
     const { password } = (req.body ?? {}) as { password?: string };
-    if (!password || password.length < 8) {
+    const check = checkPassword(password);
+    if (!check.ok) {
       reply.code(400);
-      return { error: "password must be at least 8 characters" };
+      return { error: check.error };
     }
 
-    const passwordHash = await hashPassword(password);
+    const passwordHash = await hashPassword(check.password);
     const id = crypto.randomUUID();
-    db.prepare("INSERT INTO users (id, email, password_hash, is_admin) VALUES (?, ?, ?, ?)").run(
-      id,
-      invitation.email,
-      passwordHash,
-      invitation.is_admin,
-    );
-    db.prepare("UPDATE invitations SET accepted_at = datetime('now') WHERE token = ?").run(token);
+
+    // Re-check the invitation *inside* the transaction and claim it with a
+    // conditional UPDATE. Two concurrent accepts of the same token used to both
+    // pass the check above and both INSERT, with the loser blowing up on the
+    // `users.email` UNIQUE constraint as an unhandled 500. Now the second one
+    // finds `accepted_at` already set and rolls back cleanly.
+    const claim = db.transaction(() => {
+      const claimed = db
+        .prepare("UPDATE invitations SET accepted_at = datetime('now') WHERE token = ? AND accepted_at IS NULL")
+        .run(token);
+      if (claimed.changes === 0) return false;
+      if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(invitation.email)) return false;
+      db.prepare("INSERT INTO users (id, email, password_hash, is_admin) VALUES (?, ?, ?, ?)").run(
+        id,
+        invitation.email,
+        passwordHash,
+        invitation.is_admin,
+      );
+      return true;
+    });
+
+    let created: boolean;
+    try {
+      created = claim();
+    } catch (err) {
+      req.log.error({ err }, "invitation accept failed");
+      reply.code(500);
+      return { error: "could not complete the invitation" };
+    }
+    if (!created) {
+      reply.code(409);
+      return { error: "this invitation has already been used" };
+    }
 
     createSession(id, reply);
     return { id, email: invitation.email, isAdmin: invitation.is_admin === 1, displayName: invitation.email.split("@")[0] };

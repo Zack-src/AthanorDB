@@ -3,21 +3,35 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
+import fastifyRateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import websocket from "@fastify/websocket";
 import type { WebSocket } from "ws";
-import { resolveSession } from "./auth/session.js";
+import { purgeExpiredSessions, resolveSession } from "./auth/session.js";
+import { config } from "./config.js";
+import { db } from "./db.js";
 import { getEffectivePermission } from "./permissions.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerInvitationRoutes } from "./routes/invitations.js";
 import { getProjectRow, registerProjectRoutes } from "./routes/projects.js";
 import { registerTeamRoutes } from "./routes/teams.js";
 import { registerUserRoutes } from "./routes/users.js";
-import { getRoom } from "./yjs/room.js";
+import { closeAllRooms, flushAllRooms, getRoom } from "./yjs/room.js";
 
-const app = Fastify({ logger: true });
-await app.register(websocket);
+// `bodyLimit` bounds REST payloads (the DBML/SQL import route is the big one);
+// `maxPayload` bounds a single WebSocket frame, which was previously unbounded
+// — a client could send an arbitrarily large Yjs update and the server would
+// buffer all of it.
+const app = Fastify({ logger: true, bodyLimit: config.bodyLimit });
+await app.register(websocket, { options: { maxPayload: config.wsMaxPayload } });
 await app.register(fastifyCookie);
+// Global ceiling, deliberately loose — the collaborative UI is chatty. The
+// routes that actually need protecting set their own much tighter limits.
+await app.register(fastifyRateLimit, {
+  global: false,
+  max: 300,
+  timeWindow: "1 minute",
+});
 
 // Resolves the session cookie into `req.user` for every request but never
 // rejects here — public routes (login, health, invite-accept once it exists)
@@ -25,6 +39,40 @@ await app.register(fastifyCookie);
 // `requireUser`/`requireAdmin` itself (see auth/session.ts).
 app.addHook("onRequest", async (req, reply) => {
   req.user = resolveSession(req, reply);
+});
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Second layer of CSRF defence. Sessions are cookie-based and the cookie is
+ * `SameSite=Lax`, which already blocks cross-site POSTs from a page — but that
+ * is the *only* thing standing between a hostile page and a state-changing
+ * request, and it depends entirely on browser behaviour. So: when a
+ * state-changing request carries an `Origin`, that origin must match the host
+ * the request was made to (or be listed in ATHANORDB_ALLOWED_ORIGINS).
+ *
+ * A missing `Origin` is allowed through — non-browser clients (curl, scripts,
+ * the backup tooling) don't send one, and browsers always do for cross-origin
+ * state-changing requests, which is the case that matters.
+ */
+app.addHook("onRequest", async (req, reply) => {
+  if (SAFE_METHODS.has(req.method)) return;
+  const origin = req.headers.origin;
+  if (!origin || origin === "null") return;
+
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    reply.code(403).send({ error: "invalid origin" });
+    return reply;
+  }
+  if (originHost === req.headers.host) return;
+  if (config.allowedOrigins.includes(origin.replace(/\/$/, ""))) return;
+
+  req.log.warn({ origin, host: req.headers.host }, "rejected cross-origin state-changing request");
+  reply.code(403).send({ error: "cross-origin request refused" });
+  return reply;
 });
 
 app.get("/api/health", async () => ({ status: "ok" }));
@@ -103,8 +151,86 @@ app.register(async (instance) => {
   );
 });
 
-const port = Number(process.env.PORT ?? 3001);
-app.listen({ port, host: "0.0.0.0" }).catch((err) => {
+// Expired rows were never removed, so `sessions` grew forever. Sweep at boot
+// and hourly; `unref` so this timer alone can't hold the process open.
+const SESSION_SWEEP_MS = 60 * 60 * 1000;
+const sweepSessions = () => {
+  try {
+    const removed = purgeExpiredSessions();
+    if (removed > 0) app.log.info(`purged ${removed} expired session(s)`);
+  } catch (err) {
+    app.log.error({ err }, "session sweep failed");
+  }
+};
+sweepSessions();
+const sessionSweepTimer = setInterval(sweepSessions, SESSION_SWEEP_MS);
+sessionSweepTimer.unref();
+
+/**
+ * `docker stop` / `docker compose down` send SIGTERM with nothing listening,
+ * which dropped in-flight WebSocket connections and any pending debounced
+ * snapshot (up to ~2s of edits). Stop accepting new work, flush every live
+ * room to SQLite, then close the database.
+ */
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+let shuttingDown = false;
+
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  app.log.info(`${signal} received — shutting down`);
+
+  // Hard ceiling: a stuck close must not leave the container hanging until the
+  // orchestrator SIGKILLs it, which is exactly the unflushed-state case above.
+  const timer = setTimeout(() => {
+    app.log.error("shutdown timed out — forcing exit");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  timer.unref();
+
+  clearInterval(sessionSweepTimer);
+  try {
+    const flushed = flushAllRooms();
+    if (flushed > 0) app.log.info(`flushed ${flushed} room snapshot(s)`);
+    closeAllRooms();
+    await app.close();
+    db.close();
+    app.log.info("shutdown complete");
+    process.exit(0);
+  } catch (err) {
+    app.log.error({ err }, "error during shutdown");
+    process.exit(1);
+  }
+}
+
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => void shutdown(signal));
+}
+
+/**
+ * Last-resort guards. Without them a single uncaught throw anywhere (a WS
+ * `message`/`close` handler, a stray promise) takes the whole process down —
+ * and with it every other project's live session, not just the one that
+ * failed. State is snapshotted immediately so nothing is lost if the process
+ * does go on to die, but the process is deliberately kept alive: for a
+ * collaborative server, dropping everyone is strictly worse than continuing in
+ * a possibly-degraded state, and every known failure path here is already
+ * isolated per-connection.
+ */
+process.on("uncaughtException", (err) => {
+  app.log.error({ err }, "uncaught exception — server kept alive, state flushed");
+  try {
+    flushAllRooms();
+  } catch (flushErr) {
+    app.log.error({ err: flushErr }, "flush after uncaught exception failed");
+  }
+});
+
+process.on("unhandledRejection", (reason) => {
+  app.log.error({ err: reason }, "unhandled promise rejection");
+});
+
+app.listen({ port: config.port, host: "0.0.0.0" }).catch((err) => {
   app.log.error(err);
   process.exit(1);
 });

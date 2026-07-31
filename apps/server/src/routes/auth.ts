@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { db } from "../db.js";
-import { verifyPassword } from "../auth/password.js";
+import { normalizeEmail } from "../auth/email.js";
+import { MAX_PASSWORD_LENGTH, verifyPassword } from "../auth/password.js";
 import { createSession, destroySession, requireUser } from "../auth/session.js";
 
 interface UserRow {
@@ -11,13 +12,26 @@ interface UserRow {
   display_name: string | null;
 }
 
+/**
+ * Login is the one unauthenticated route that does expensive work (scrypt) and
+ * guards every account, so it gets a per-IP limit: 10 attempts a minute is
+ * far beyond human typing and far below anything useful for guessing.
+ */
+const LOGIN_RATE_LIMIT = { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } };
+
 export function registerAuthRoutes(app: FastifyInstance): void {
-  app.post("/api/auth/login", async (req, reply) => {
+  app.post("/api/auth/login", LOGIN_RATE_LIMIT, async (req, reply) => {
     const { email, password } = (req.body ?? {}) as { email?: string; password?: string };
-    const normalized = email?.trim().toLowerCase();
+    const normalized = normalizeEmail(email);
     if (!normalized || !password) {
       reply.code(400);
       return { error: "email and password are required" };
+    }
+    // Bail before hashing: an arbitrarily long password would otherwise make
+    // every failed attempt disproportionately expensive to serve.
+    if (password.length > MAX_PASSWORD_LENGTH) {
+      reply.code(401);
+      return { error: "invalid email or password" };
     }
 
     const row = db.prepare("SELECT id, email, password_hash, is_admin, display_name FROM users WHERE email = ?").get(

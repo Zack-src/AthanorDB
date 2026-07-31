@@ -1,5 +1,6 @@
 import { db } from "./db.js";
-import { hashPassword } from "./auth/password.js";
+import { normalizeEmail } from "./auth/email.js";
+import { checkPassword, hashPassword } from "./auth/password.js";
 
 /**
  * Creates the first global-admin account, bypassing invitations entirely —
@@ -17,13 +18,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const email = emailArg.trim().toLowerCase();
-  if (!email.includes("@")) {
+  const email = normalizeEmail(emailArg);
+  if (!email) {
     console.error("invalid email");
     process.exit(1);
   }
-  if (passwordArg.length < 8) {
-    console.error("password must be at least 8 characters");
+  const check = checkPassword(passwordArg);
+  if (!check.ok) {
+    console.error(check.error);
     process.exit(1);
   }
   if (db.prepare("SELECT id FROM users WHERE email = ?").get(email)) {
@@ -31,7 +33,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const passwordHash = await hashPassword(passwordArg);
+  const passwordHash = await hashPassword(check.password);
   const id = crypto.randomUUID();
   db.prepare("INSERT INTO users (id, email, password_hash, is_admin) VALUES (?, ?, ?, 1)").run(id, email, passwordHash);
   console.log(`created global admin ${email} (id ${id})`);

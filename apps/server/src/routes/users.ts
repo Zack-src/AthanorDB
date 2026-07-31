@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { db } from "../db.js";
-import { hashPassword, verifyPassword } from "../auth/password.js";
+import { checkPassword, hashPassword, verifyPassword } from "../auth/password.js";
 import { requireAdmin, requireUser } from "../auth/session.js";
 
 interface UserRow {
@@ -11,7 +11,6 @@ interface UserRow {
   created_at: string;
 }
 
-const MIN_PASSWORD_LENGTH = 8;
 
 export function registerUserRoutes(app: FastifyInstance): void {
   // Admin-only: needed by the Teams admin-console UI's member picker.
@@ -56,9 +55,10 @@ export function registerUserRoutes(app: FastifyInstance): void {
       reply.code(400);
       return { error: "currentPassword and newPassword are required" };
     }
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    const check = checkPassword(newPassword, "newPassword");
+    if (!check.ok) {
       reply.code(400);
-      return { error: `newPassword must be at least ${MIN_PASSWORD_LENGTH} characters` };
+      return { error: check.error };
     }
     const row = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(user.id) as
       | { password_hash: string }
@@ -67,7 +67,7 @@ export function registerUserRoutes(app: FastifyInstance): void {
       reply.code(401);
       return { error: "current password is incorrect" };
     }
-    const passwordHash = await hashPassword(newPassword);
+    const passwordHash = await hashPassword(check.password);
     db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, user.id);
     return { changed: true };
   });
@@ -85,11 +85,12 @@ export function registerUserRoutes(app: FastifyInstance): void {
       return { error: "not found" };
     }
     const { newPassword } = (req.body ?? {}) as { newPassword?: string };
-    if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
+    const check = checkPassword(newPassword, "newPassword");
+    if (!check.ok) {
       reply.code(400);
-      return { error: `newPassword must be at least ${MIN_PASSWORD_LENGTH} characters` };
+      return { error: check.error };
     }
-    const passwordHash = await hashPassword(newPassword);
+    const passwordHash = await hashPassword(check.password);
     db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, id);
     db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
     return { reset: true };

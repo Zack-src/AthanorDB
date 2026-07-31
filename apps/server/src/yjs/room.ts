@@ -186,6 +186,24 @@ export class Room {
     this.conns.forEach((_meta, conn) => conn.close());
   }
 
+  /**
+   * Writes this room's current state to SQLite right now, cancelling any
+   * pending debounced snapshot. Used on shutdown, where waiting out the
+   * debounce would mean losing the last couple of seconds of edits.
+   */
+  flush(): void {
+    if (this.snapshotTimer) {
+      clearTimeout(this.snapshotTimer);
+      this.snapshotTimer = null;
+    }
+    if (this.destroyed) return;
+    try {
+      saveSnapshot(this.projectId, this.doc);
+    } catch (err) {
+      console.error(`[room ${this.projectId}] failed to save snapshot:`, err);
+    }
+  }
+
   private broadcast(message: Uint8Array, exclude?: WebSocket): void {
     this.conns.forEach((_meta, conn) => {
       if (conn !== exclude && conn.readyState === conn.OPEN) conn.send(message);
@@ -214,6 +232,23 @@ export function getRoom(projectId: string): Room {
     rooms.set(projectId, room);
   }
   return room;
+}
+
+/**
+ * Snapshots every live room immediately. Called on SIGTERM/SIGINT: without it,
+ * anything edited inside the last `SNAPSHOT_DEBOUNCE_MS` is only in the
+ * revision log and the in-memory doc, and dies with the process. Returns how
+ * many rooms were flushed.
+ */
+export function flushAllRooms(): number {
+  for (const room of rooms.values()) room.flush();
+  return rooms.size;
+}
+
+/** Disconnects every client and drops every room — shutdown, after `flushAllRooms`. */
+export function closeAllRooms(): void {
+  for (const room of rooms.values()) room.destroy();
+  rooms.clear();
 }
 
 /** Tears down a project's in-memory room (if one is live) ahead of deleting its rows — see `Room.destroy`. */
