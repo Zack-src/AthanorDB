@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Field } from "@athanordb/shared";
-import { DiamondIcon, KeyIcon, PencilIcon, TrashIcon } from "../Icons.js";
+import { AsteriskIcon, DiamondIcon, IncrementIcon, KeyIcon, PencilIcon, TrashIcon } from "../Icons.js";
 import { Button } from "../ui/Button.js";
 import {
   FIELD_TYPE_CHIP_ACTIVE_CLASS,
@@ -213,7 +213,7 @@ export function FieldEditorPopover({
                   onClick={() => onUpdateField?.(field.id, { notNull: !field.notNull })}
                   data-tooltip="Not Null (notNull)"
                 >
-                  Not Null
+                  <AsteriskIcon size={11} /> Not Null
                 </button>
                 <button
                   type="button"
@@ -221,7 +221,7 @@ export function FieldEditorPopover({
                   onClick={() => onUpdateField?.(field.id, { increment: !field.increment })}
                   data-tooltip="Auto Increment (increment)"
                 >
-                  Increment
+                  <IncrementIcon size={11} /> Increment
                 </button>
               </div>
             </div>

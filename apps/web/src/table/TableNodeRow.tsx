@@ -61,7 +61,7 @@ export function TableNodeRow({
       <Handle type="target" position={Position.Left} id={`${field.id}-left-target`} className="table-row-handle" />
       <Handle type="source" position={Position.Left} id={`${field.id}-left-source`} className="table-row-handle" />
       <span className={rowNameClass(isLinked)}>{field.name}</span>
-      <FieldBadge field={field} isForeignKey={isForeignKey} isPk={isPk} />
+      <FieldBadge isForeignKey={isForeignKey} isPk={isPk} />
 
       <div className={ROW_BADGES_CLASS}>
         {field.unique && (
