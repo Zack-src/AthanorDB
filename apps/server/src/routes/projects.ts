@@ -3,6 +3,7 @@ import * as Y from "yjs";
 import { readProjectFromDoc, writeProjectToDoc } from "@athanordb/shared";
 import {
   applyVisualMetadata,
+  describeDbmlParseError,
   mergeProjectIntoExisting,
   parseDbml,
   parseSql,
@@ -379,15 +380,17 @@ export function registerProjectRoutes(app: FastifyInstance): void {
       try {
         database = parseSql(body.source, body.dialect);
       } catch (err) {
+        const info = describeDbmlParseError(err);
         reply.code(400);
-        return { error: `SQL parse error: ${(err as Error).message}` };
+        return { error: `SQL parse error: ${info.message}`, ...info };
       }
     } else {
       try {
         database = parseDbml(body.source);
       } catch (err) {
+        const info = describeDbmlParseError(err);
         reply.code(400);
-        return { error: `DBML parse error: ${(err as Error).message}` };
+        return { error: `DBML parse error: ${info.message}`, ...info };
       }
     }
 

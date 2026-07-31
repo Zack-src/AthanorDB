@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type MutableRefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type MutableRefObject } from "react";
+import { createPortal } from "react-dom";
 import {
   ReactFlow,
   useReactFlow,
@@ -19,7 +20,7 @@ import { RefEdge, type RefEdgeType } from "./RefEdge.js";
 import { ZoneNode } from "./ZoneNode.js";
 import { StickyNoteNode } from "./StickyNoteNode.js";
 import { CursorNode, type CursorNodeType } from "./CursorNode.js";
-import { FrameIcon, LinkIcon, MinimapIcon, NoteIcon, TableIcon } from "./Icons.js";
+import { ChevronRightIcon, FrameIcon, LinkIcon, MinimapIcon, NoteIcon, TableIcon } from "./Icons.js";
 import { FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadShowMinimap, loadViewport, saveShowMinimap, viewportKey } from "./localPrefs.js";
 import { CONTEXT_MENU_CLASS, CONTEXT_MENU_ITEM_CLASS } from "./ui/contextMenuStyles.js";
 import {
@@ -96,6 +97,88 @@ function CanvasContextMenu(props: {
         <NoteIcon size={14} /> Add sticky note
       </button>
     </div>
+  );
+}
+
+const DETAIL_LEVEL_LABEL: Record<DetailLevel, string> = { compact: "Compact", standard: "Standard", full: "Full" };
+const DETAIL_LEVEL_HINT: Record<DetailLevel, string> = {
+  compact: "Show only key fields",
+  standard: "Show primary/foreign keys",
+  full: "Show all fields",
+};
+
+/** Detail-level toolbar control — a single button opening a popover list instead of three always-visible segments, so the floating toolbar stays compact. */
+function DetailLevelDropdown(props: { value: DetailLevel | null; onChange: (level: DetailLevel) => void }) {
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ x: number; bottom: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    // "click", not "mousedown": see ColorSwatchPicker — React Flow's pane
+    // stops mousedown propagation for its own pan/drag handling.
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("click", handleOutsideClick);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("click", handleOutsideClick);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const toggle = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setMenuPos({ x: rect.left, bottom: window.innerHeight - rect.top + 6 });
+    }
+    setOpen((v) => !v);
+  };
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`${CANVAS_TOOLBAR_SEGMENT_CLASS} flex items-center gap-1 ${open ? CANVAS_TOOLBAR_SEGMENT_ACTIVE_CLASS : ""}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggle();
+        }}
+        data-tooltip="Detail level"
+        data-tooltip-pos="bottom"
+      >
+        {props.value ? DETAIL_LEVEL_LABEL[props.value] : "Detail"}
+        <ChevronRightIcon size={11} className="-rotate-90" />
+      </button>
+      {open &&
+        menuPos &&
+        createPortal(
+          <div ref={menuRef} className={CONTEXT_MENU_CLASS} style={{ left: menuPos.x, bottom: menuPos.bottom }}>
+            {(["compact", "standard", "full"] as const).map((level) => (
+              <button
+                key={level}
+                type="button"
+                className={`${CONTEXT_MENU_ITEM_CLASS} justify-between ${level === props.value ? "text-text" : ""}`}
+                onClick={() => {
+                  props.onChange(level);
+                  setOpen(false);
+                }}
+                data-tooltip={DETAIL_LEVEL_HINT[level]}
+              >
+                {DETAIL_LEVEL_LABEL[level]}
+                {level === props.value && <span className="text-primary">✓</span>}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -277,21 +360,7 @@ export function CanvasArea(props: {
       >
         <Background color="#33353c" gap={20} />
         <Controls showZoom={false} orientation="horizontal" position="bottom-left" className={CANVAS_TOOLBAR_CLASS}>
-          <div className="flex items-center gap-0.5" data-tooltip="Detail level" data-tooltip-pos="bottom">
-            {(["compact", "standard", "full"] as const).map((level) => (
-              <button
-                key={level}
-                type="button"
-                className={`${CANVAS_TOOLBAR_SEGMENT_CLASS} ${props.activeDetailLevel === level ? CANVAS_TOOLBAR_SEGMENT_ACTIVE_CLASS : ""}`}
-                onClick={() => props.onSetDetailLevel(level)}
-                data-tooltip={
-                  level === "compact" ? "Show only key fields" : level === "standard" ? "Show primary/foreign keys" : "Show all fields"
-                }
-              >
-                {level === "compact" ? "Compact" : level === "standard" ? "Standard" : "Full"}
-              </button>
-            ))}
-          </div>
+          <DetailLevelDropdown value={props.activeDetailLevel} onChange={props.onSetDetailLevel} />
           <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
           <div className="flex items-center gap-0.5 px-0.5" data-tooltip="Canvas text size" data-tooltip-pos="bottom">
             <button

@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EditorState } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection, dropCursor } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { bracketMatching } from "@codemirror/language";
-import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
-import { selectNextOccurrence } from "@codemirror/search";
-import { oneDark } from "@codemirror/theme-one-dark";
 import type { Project } from "@athanordb/shared";
 import { projectToDbml } from "@athanordb/dbml-engine";
-import { ChevronLeftIcon, CodeIcon } from "./Icons.js";
-import { dbmlLanguage, dbmlCompletion, athanorEditorTheme, customTabBinding } from "./codemirrorDbml.js";
+import { ChevronLeftIcon, CodeIcon, LayoutGridIcon, SettingsIcon } from "./Icons.js";
+import { DbmlEditor, type DbmlEditorHandle } from "./dbmlEditor/DbmlEditor.js";
+import type { ServerProblem } from "./dbmlEditor/lint.js";
 import { Button } from "./ui/Button.js";
 import { ErrorText } from "./ui/Alert.js";
 
@@ -34,130 +28,16 @@ function SyncStatusPill({ status }: { status: SyncStatus }) {
 }
 
 const DBML_SYNC_DEBOUNCE_MS = 600;
-
-function CodeMirrorEditor(props: {
-  value: string;
-  onChange: (val: string) => void;
-  scrollToTable?: { tableName: string; requestId: number } | null;
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const viewRef = useRef<EditorView | null>(null);
-  const onChangeRef = useRef(props.onChange);
-  onChangeRef.current = props.onChange;
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const startState = EditorState.create({
-      doc: props.value,
-      extensions: [
-        lineNumbers(),
-        highlightActiveLineGutter(),
-        highlightActiveLine(),
-        drawSelection(),
-        dropCursor(),
-        history(),
-        bracketMatching(),
-        closeBrackets(),
-        EditorView.lineWrapping,
-        oneDark,
-        athanorEditorTheme,
-        dbmlLanguage,
-        autocompletion({ override: [dbmlCompletion], selectOnOpen: true }),
-        keymap.of([
-          customTabBinding,
-          { key: "Mod-d", run: selectNextOccurrence, preventDefault: true },
-          ...completionKeymap,
-          ...defaultKeymap,
-          ...historyKeymap,
-          ...closeBracketsKeymap,
-        ]),
-        // CodeMirror's own keymap dispatch calls preventDefault() for a
-        // matched binding, but never stopPropagation() — the native keydown
-        // still bubbles out of the editor afterward. The app's global
-        // Ctrl+D/Ctrl+Z/Ctrl+Y canvas shortcuts (App.tsx) already try to
-        // exclude `.cm-editor` via `e.target.closest(...)`, but that's a
-        // second line of defense we shouldn't have to rely on being
-        // perfectly in sync with every future shortcut added there. Stop it
-        // at the source instead, for every ctrl/cmd-combo key this editor
-        // itself binds (d/z/y), so it can never reach a window-level
-        // listener regardless of how that guard is written.
-        EditorView.domEventHandlers({
-          keydown: (event) => {
-            if ((event.ctrlKey || event.metaKey) && ["d", "z", "y"].includes(event.key.toLowerCase())) {
-              event.stopPropagation();
-            }
-            return false;
-          },
-        }),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            onChangeRef.current(update.state.doc.toString());
-          }
-        }),
-      ],
-    });
-
-    const view = new EditorView({
-      state: startState,
-      parent: containerRef.current,
-    });
-    viewRef.current = view;
-
-    return () => {
-      view.destroy();
-      viewRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    const view = viewRef.current;
-    if (!view) return;
-    const currentDoc = view.state.doc.toString();
-    if (props.value !== currentDoc) {
-      view.dispatch({
-        changes: { from: 0, to: currentDoc.length, insert: props.value },
-      });
-    }
-  }, [props.value]);
-
-  const lastHandledRequestRef = useRef<number | null>(null);
-  useEffect(() => {
-    const view = viewRef.current;
-    const request = props.scrollToTable;
-    if (!view || !request || lastHandledRequestRef.current === request.requestId) return;
-    const escaped = request.tableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const tableLineRe = new RegExp(`^\\s*Table\\s+(?:"?[\\w]+"?\\s*\\.\\s*)?"?${escaped}"?\\s*\\{`, "i");
-    const doc = view.state.doc;
-    for (let i = 1; i <= doc.lines; i++) {
-      const line = doc.line(i);
-      if (tableLineRe.test(line.text)) {
-        view.dispatch({
-          selection: { anchor: line.from, head: line.to },
-          effects: EditorView.scrollIntoView(line.from, { y: "center" }),
-        });
-        view.focus();
-        lastHandledRequestRef.current = request.requestId;
-        break;
-      }
-    }
-  }, [props.scrollToTable, props.value]);
-
-  return (
-    <div
-      ref={containerRef}
-      style={{ height: "100%", width: "100%", overflow: "hidden" }}
-      onKeyDown={(e) => {
-        // Stop canvas shortcuts from intercepting editor keys after CodeMirror processes them
-        e.stopPropagation();
-      }}
-    />
-  );
-}
-
 const DEFAULT_PANEL_WIDTH = 440;
 const MIN_PANEL_WIDTH = 280;
 const STORAGE_KEY_WIDTH = "athanordb_dbml_panel_width";
+
+export interface DbmlErrorPos {
+  line: number;
+  column?: number;
+  endLine?: number;
+  endColumn?: number;
+}
 
 function DbmlPanel(props: {
   project: Project;
@@ -170,6 +50,7 @@ function DbmlPanel(props: {
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<SyncStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ServerProblem | null>(null);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_WIDTH);
     if (saved) {
@@ -182,33 +63,35 @@ function DbmlPanel(props: {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirtyRef = useRef(dirty);
   const lastAppliedTextRef = useRef<string | null>(null);
+  const editorRef = useRef<DbmlEditorHandle | null>(null);
+  /** Mirror of `text` for Ctrl+S, which fires outside React's render cycle. */
+  const textRef = useRef(text);
 
-  const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-    const startX = e.clientX;
-    const startWidth = panelWidth;
+  const startResizing = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsResizing(true);
+      const startX = e.clientX;
+      const startWidth = panelWidth;
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const maxWidth = Math.min(1200, window.innerWidth - 100);
-      const nextWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxWidth, startWidth + deltaX));
-      setPanelWidth(nextWidth);
-    };
+      const clamp = (deltaX: number) => {
+        const maxWidth = Math.min(1200, window.innerWidth - 100);
+        return Math.max(MIN_PANEL_WIDTH, Math.min(maxWidth, startWidth + deltaX));
+      };
 
-    const onMouseUp = (upEvent: MouseEvent) => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-      setIsResizing(false);
-      const deltaX = upEvent.clientX - startX;
-      const maxWidth = Math.min(1200, window.innerWidth - 100);
-      const finalWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxWidth, startWidth + deltaX));
-      localStorage.setItem(STORAGE_KEY_WIDTH, String(finalWidth));
-    };
+      const onMouseMove = (moveEvent: MouseEvent) => setPanelWidth(clamp(moveEvent.clientX - startX));
+      const onMouseUp = (upEvent: MouseEvent) => {
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+        setIsResizing(false);
+        localStorage.setItem(STORAGE_KEY_WIDTH, String(clamp(upEvent.clientX - startX)));
+      };
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-  }, [panelWidth]);
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    },
+    [panelWidth],
+  );
 
   const handleDoubleClickResizer = useCallback(() => {
     setPanelWidth(DEFAULT_PANEL_WIDTH);
@@ -218,6 +101,10 @@ function DbmlPanel(props: {
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
+
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
 
   // Fetch initial DBML content
   useEffect(() => {
@@ -231,7 +118,6 @@ function DbmlPanel(props: {
       .catch((err) => setError((err as Error).message));
   }, [projectId]);
 
-  // Refetch only on remote changes when user is not dirty
   // Sync live project changes (e.g. node/ref deletions or modifications) into DBML text
   useEffect(() => {
     if (dirtyRef.current) return;
@@ -269,15 +155,23 @@ function DbmlPanel(props: {
           if (res.ok) {
             setDirty(false);
             setError(null);
+            setProblem(null);
             setStatus("synced");
           } else {
             const data = await res.json().catch(() => ({}));
-            setError(data.error ?? `Import failed (${res.status})`);
+            const message = data.error ?? `Import failed (${res.status})`;
+            setError(message);
+            setProblem(
+              typeof data.line === "number"
+                ? { message, line: data.line, column: data.column, endLine: data.endLine, endColumn: data.endColumn }
+                : null,
+            );
             setStatus("error");
           }
         })
         .catch((err) => {
           setError((err as Error).message);
+          setProblem(null);
           setStatus("error");
         });
     },
@@ -290,14 +184,24 @@ function DbmlPanel(props: {
     };
   }, []);
 
-  const handleChange = (value: string) => {
-    setText(value);
-    setDirty(true);
-    setStatus("typing");
-    setError(null);
+  const handleChange = useCallback(
+    (value: string) => {
+      setText(value);
+      setDirty(true);
+      setStatus("typing");
+      setError(null);
+      setProblem(null);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => applyNow(value), DBML_SYNC_DEBOUNCE_MS);
+    },
+    [applyNow],
+  );
+
+  /** Ctrl+S — skip the debounce and push the current buffer immediately. */
+  const handleSave = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => applyNow(value), DBML_SYNC_DEBOUNCE_MS);
-  };
+    applyNow(textRef.current);
+  }, [applyNow]);
 
   return (
     <div className="relative flex shrink-0 flex-col border-r border-border bg-surface nokey" style={{ width: panelWidth }}>
@@ -312,16 +216,49 @@ function DbmlPanel(props: {
         <span className="text-[13px] font-semibold text-text">DBML</span>
         <SyncStatusPill status={status} />
         <span className="ml-auto" />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => editorRef.current?.openPalette("symbols")}
+          data-tooltip="Go to symbol (Ctrl+P)"
+        >
+          <LayoutGridIcon size={14} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => editorRef.current?.openPalette("commands")}
+          data-tooltip="Command palette (Ctrl+Shift+P)"
+        >
+          <SettingsIcon size={14} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => editorRef.current?.format()}
+          data-tooltip="Format document (Shift+Alt+F)"
+        >
+          Format
+        </Button>
         <Button variant="ghost" size="icon" onClick={props.onClose} data-tooltip="Collapse editor">
           <ChevronLeftIcon size={16} />
         </Button>
       </div>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <CodeMirrorEditor value={text} onChange={handleChange} scrollToTable={props.scrollToTable} />
+      <div className="min-h-0 flex-1">
+        <DbmlEditor
+          ref={editorRef}
+          value={text}
+          onChange={handleChange}
+          onSave={handleSave}
+          problem={problem}
+          scrollToTable={props.scrollToTable}
+        />
       </div>
       {error && (
         <div className="m-2">
-          <ErrorText>{error}</ErrorText>
+          <ErrorText>
+            {problem ? `Line ${problem.line}${problem.column ? `, col ${problem.column}` : ""} — ${error}` : error}
+          </ErrorText>
         </div>
       )}
     </div>

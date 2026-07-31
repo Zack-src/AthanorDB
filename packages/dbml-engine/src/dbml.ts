@@ -20,6 +20,35 @@ export function toSql(database: any, dialect: SqlDialect): string {
   return ModelExporter.export(database, dialect, false);
 }
 
+export interface DbmlParseErrorInfo {
+  message: string;
+  line?: number;
+  column?: number;
+  endLine?: number;
+  endColumn?: number;
+}
+
+interface CompilerDiagnostic {
+  message: string;
+  location?: { start?: { line?: number; column?: number }; end?: { line?: number; column?: number } };
+}
+
+/** @dbml/core's `dbmlv2`/ANTLR parsers throw a `CompilerError` (`{ diags: CompilerDiagnostic[] }`, not a plain `Error` — no `.message` of its own) carrying 1-based line/column per diagnostic. Other failure paths (e.g. semantic validation in `Database`'s constructor) still throw plain `Error`s with no location. This normalizes either into one shape so callers always get a usable message, plus a line/column when the parser can pinpoint one. */
+export function describeDbmlParseError(err: unknown): DbmlParseErrorInfo {
+  const diags = (err as { diags?: CompilerDiagnostic[] } | null)?.diags;
+  if (Array.isArray(diags) && diags.length > 0) {
+    const first = diags[0];
+    return {
+      message: diags.map((d) => d.message).join("; "),
+      line: first.location?.start?.line,
+      column: first.location?.start?.column,
+      endLine: first.location?.end?.line,
+      endColumn: first.location?.end?.column,
+    };
+  }
+  return { message: err instanceof Error ? err.message : String(err) };
+}
+
 // @dbml/core always creates a schema named "public" when the source doesn't
 // declare one (its own DEFAULT_SCHEMA_NAME, hardcoded identically for every
 // dialect — including mysql/mssql, which don't even have a "public" schema
@@ -355,19 +384,60 @@ export function projectToSql(project: Project, dialect: SqlDialect): string {
  * carry no visual metadata (yet) and are taken wholesale from `incoming`,
  * remapped onto the merged ids.
  */
+const GRID_COL_WIDTH = 320;
+const GRID_ROW_HEIGHT = 400;
+const positionKey = (p: Position) => `${Math.round(p.x)},${Math.round(p.y)}`;
+
 export function mergeProjectIntoExisting(existing: Project, incoming: Project): Project {
   const existingTablesByName = new Map(existing.tables.map((t) => [t.name, t]));
   const tableIdRemap = new Map<string, string>();
   const fieldIdRemap = new Map<string, string>();
 
-  const tables: Table[] = incoming.tables.map((table, index) => {
+  // Grid slot for a genuinely new table, skipping whatever's already occupied
+  // by an existing table's saved position — otherwise a new table dropped
+  // between two others reuses the same declaration-order index one of those
+  // already-placed tables was originally given, and lands stacked exactly on
+  // top of it instead of appearing where the user can see it.
+  const occupiedSlots = new Set(existing.tables.map((t) => positionKey(t.position)));
+  let nextSlot = 0;
+  const pickFreePosition = (): Position => {
+    let pos = { x: (nextSlot % 6) * GRID_COL_WIDTH, y: Math.floor(nextSlot / 6) * GRID_ROW_HEIGHT };
+    while (occupiedSlots.has(positionKey(pos))) {
+      nextSlot++;
+      pos = { x: (nextSlot % 6) * GRID_COL_WIDTH, y: Math.floor(nextSlot / 6) * GRID_ROW_HEIGHT };
+    }
+    occupiedSlots.add(positionKey(pos));
+    nextSlot++;
+    return pos;
+  };
+  // A new table's incoming position is either a sidecar-restored one
+  // (legitimate, keep it) or `toProject`'s declaration-order grid default
+  // (only free of collisions by coincidence) — try it as-is first, and only
+  // fall back to hunting for a free slot if it's actually taken.
+  const reservePosition = (candidate: Position): Position => {
+    if (!occupiedSlots.has(positionKey(candidate))) {
+      occupiedSlots.add(positionKey(candidate));
+      return candidate;
+    }
+    return pickFreePosition();
+  };
+
+  const tables: Table[] = incoming.tables.map((table) => {
     const prev = existingTablesByName.get(table.name);
-    const finalId = prev?.id ?? table.id;
+    // @dbml/core's `table.id` is just this parse's declaration-order position
+    // (1, 2, 3...), not a stable identity — reusing it for a genuinely new
+    // table risks colliding with an unrelated existing table's already-
+    // assigned stable id the moment a table gets inserted before others (every
+    // later table's positional number shifts by one). A fresh random id has
+    // no such collision.
+    const finalId = prev?.id ?? crypto.randomUUID();
     tableIdRemap.set(table.id, finalId);
 
     const prevFieldsByName = new Map((prev?.fields ?? []).map((f) => [f.name, f]));
     const fields = table.fields.map((field) => {
-      const finalFieldId = prevFieldsByName.get(field.name)?.id ?? field.id;
+      // Same reasoning as `finalId` above, one level down: @dbml/core's
+      // `field.id` is also just a positional counter, not a stable identity.
+      const finalFieldId = prevFieldsByName.get(field.name)?.id ?? crypto.randomUUID();
       fieldIdRemap.set(field.id, finalFieldId);
       return { ...field, id: finalFieldId };
     });
@@ -381,7 +451,7 @@ export function mergeProjectIntoExisting(existing: Project, incoming: Project): 
       id: finalId,
       fields,
       indexes,
-      position: prev?.position ?? table.position ?? { x: (index % 6) * 320, y: Math.floor(index / 6) * 400 },
+      position: prev?.position ?? reservePosition(table.position),
       size: prev?.size ?? table.size,
       style: prev?.style ?? table.style,
       detailLevel: prev?.detailLevel ?? table.detailLevel,

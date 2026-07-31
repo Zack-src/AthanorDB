@@ -75,10 +75,10 @@ export function getDefaultCornerPoints(pathString: string, startX: number, start
   const regex = /[L]\s*(-?\d+(?:\.\d+)?)\s*,?\s*(-?\d+(?:\.\d+)?)/gi;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(pathString)) !== null) {
-    const x = Math.round(parseFloat(match[1]));
-    const y = Math.round(parseFloat(match[2]));
-    const isStart = Math.abs(x - Math.round(startX)) < 4 && Math.abs(y - Math.round(startY)) < 4;
-    const isEnd = Math.abs(x - Math.round(endX)) < 4 && Math.abs(y - Math.round(endY)) < 4;
+    const x = parseFloat(match[1]);
+    const y = parseFloat(match[2]);
+    const isStart = Math.abs(x - startX) < 4 && Math.abs(y - startY) < 4;
+    const isEnd = Math.abs(x - endX) < 4 && Math.abs(y - endY) < 4;
     if (!isStart && !isEnd) {
       points.push({ x, y });
     }
