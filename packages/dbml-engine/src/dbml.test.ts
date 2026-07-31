@@ -1,15 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Project } from "@athanordb/shared";
-import {
-  parseDbml,
-  toProject,
-  projectToDbml,
-  projectToSql,
-  mergeProjectIntoExisting,
-  extractVisualMetadata,
-  applyVisualMetadata,
-} from "./dbml.js";
+import { parseDbml, toProject, projectToSql, mergeProjectIntoExisting } from "./dbml.js";
+import { projectToDbml, extractVisualMetadata, applyVisualMetadata } from "./serialize.js";
 
 test("DBML -> Project round-trips table/field constraints", () => {
   const source = `Table users {

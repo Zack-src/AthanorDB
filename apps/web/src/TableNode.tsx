@@ -118,7 +118,11 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
             }}
           />
         ) : (
-          <span className={TABLE_NAME_CLASS} data-tooltip="Double-click to rename">
+          <span
+            className={TABLE_NAME_CLASS}
+            data-tooltip={table.note ? table.name : "Double-click to rename"}
+            {...(table.note ? { "data-tooltip-note": table.note } : {})}
+          >
             {table.name}
           </span>
         )}

@@ -57,6 +57,7 @@ import {
 import { lintGutter, lintKeymap, nextDiagnostic, openLintPanel } from "@codemirror/lint";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { athanorEditorTheme, dbmlLanguageSupport } from "./language.js";
+import { createSearchPanel, openReplacePanel, searchPanelTheme } from "./searchPanel.js";
 import { dbmlCompletion } from "./completion.js";
 import { dbmlSymbolsField } from "./symbols.js";
 import { dbmlNavigation, goToDefinition, navigateBack, navigateForward } from "./navigation.js";
@@ -127,6 +128,7 @@ export const dbmlKeymap = keymap.of([
   // completion / search / palette / save
   { key: "Mod-i", run: startCompletion, preventDefault: true },
   { key: "Mod-f", run: openSearchPanel, preventDefault: true },
+  { key: "Mod-h", run: openReplacePanel, preventDefault: true },
   { key: "Mod-p", preventDefault: true, run: (view) => callFacet(view, paletteHandler, "symbols") },
   { key: "Mod-Shift-o", preventDefault: true, run: (view) => callFacet(view, paletteHandler, "symbols") },
   { key: "Mod-Shift-p", preventDefault: true, run: (view) => callFacet(view, paletteHandler, "commands") },
@@ -173,7 +175,8 @@ export function createDbmlExtensions(options: DbmlEditorOptions): Extension[] {
     bracketMatching(),
     closeBrackets(),
     highlightSelectionMatches({ minSelectionLength: 2 }),
-    search({ top: true }),
+    search({ top: true, createPanel: createSearchPanel }),
+    searchPanelTheme,
     dbmlSymbolsField,
     dbmlLanguageSupport,
     dbmlNavigation,

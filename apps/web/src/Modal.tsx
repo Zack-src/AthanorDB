@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { CloseIcon } from "./Icons.js";
 import { Button } from "./ui/Button.js";
-import { INPUT_CLASS } from "./ui/inputStyles.js";
+import { SELECT_CLASS } from "./ui/inputStyles.js";
 import type { ExportFormat } from "./types.js";
 
 export function Modal(props: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
@@ -39,7 +39,7 @@ export function Modal(props: { title: string; onClose: () => void; children: Rea
 
 export function FormatSelect(props: { value: ExportFormat; onChange: (v: ExportFormat) => void; includeImageFormats?: boolean }) {
   return (
-    <select className={INPUT_CLASS} value={props.value} onChange={(e) => props.onChange(e.target.value as ExportFormat)}>
+    <select className={SELECT_CLASS} value={props.value} onChange={(e) => props.onChange(e.target.value as ExportFormat)}>
       <option value="dbml">DBML</option>
       <option value="postgres">SQL — Postgres</option>
       <option value="mysql">SQL — MySQL</option>

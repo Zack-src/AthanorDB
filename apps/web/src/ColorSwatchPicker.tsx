@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { PlusIcon } from "./Icons.js";
-import { INPUT_CLASS } from "./ui/inputStyles.js";
+import { INPUT_XS_CLASS } from "./ui/inputStyles.js";
 
 export const SWATCH_CELL_CLASS =
   "h-[22px] w-[22px] shrink-0 rounded-sm border-[1.5px] border-white/15 p-0 cursor-pointer transition-transform duration-75 ease-out hover:scale-110";
@@ -150,7 +150,7 @@ export function ColorSwatchPicker(props: {
               </button>
             </div>
             <input
-              className={`${INPUT_CLASS} w-full px-2 py-[5px] font-mono text-xs`}
+              className={`${INPUT_XS_CLASS} w-full font-mono`}
               value={hexDraft}
               onChange={(e) => setHexDraft(e.target.value)}
               onBlur={commitHex}

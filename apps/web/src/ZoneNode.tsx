@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { NodeResizer, type Node, type NodeProps } from "@xyflow/react";
 import type { Zone } from "@athanordb/shared";
 import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
+import { INPUT_XS_CLASS } from "./ui/inputStyles.js";
 
 export interface ZoneNodeData {
   zone: Zone;
@@ -52,7 +53,7 @@ function ZoneNodeImpl({ data, selected }: NodeProps<ZoneNodeType>) {
           {editing ? (
             <input
               autoFocus
-              className="nodrag rounded border border-border-strong px-1.5 py-0.5 text-[calc(12.5px_*_var(--canvas-font-scale))] font-bold"
+              className={`nodrag ${INPUT_XS_CLASS} text-[calc(12.5px_*_var(--canvas-font-scale))] font-bold`}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onBlur={commit}

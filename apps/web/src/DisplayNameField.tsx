@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { INPUT_CLASS } from "./ui/inputStyles.js";
+import { INPUT_SM_CLASS } from "./ui/inputStyles.js";
 
 /** The display-name input shared by the project-list header and the in-project toolbar — local draft, committed via PATCH /api/users/me on blur/Enter rather than firing a network call per keystroke. */
 export function DisplayNameField(props: { value: string; onCommit: (name: string) => void }) {
@@ -20,7 +20,7 @@ export function DisplayNameField(props: { value: string; onCommit: (name: string
   return (
     <label className="flex items-center gap-1.5 text-xs text-text-muted">
       <input
-        className={`${INPUT_CLASS} w-[110px] px-2 py-1`}
+        className={`${INPUT_SM_CLASS} w-[130px]`}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}

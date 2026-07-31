@@ -4,7 +4,7 @@ import { PlusIcon, TrashIcon } from "../Icons.js";
 import { Button } from "../ui/Button.js";
 import { ErrorText } from "../ui/Alert.js";
 import { List, ListMain, ListRow, EmptyState } from "../ui/List.js";
-import { INPUT_CLASS } from "../ui/inputStyles.js";
+import { SELECT_CLASS } from "../ui/inputStyles.js";
 import type { TeamDetail, UserSummary } from "../types.js";
 
 export function TeamDetailView(props: { teamId: string; onClose: () => void; onChanged: () => void }) {
@@ -54,7 +54,7 @@ export function TeamDetailView(props: { teamId: string; onClose: () => void; onC
       {team && (
         <>
           <div className="mb-7 flex max-w-[420px] gap-2">
-            <select className={`${INPUT_CLASS} flex-1`} value={pickUserId} onChange={(e) => setPickUserId(e.target.value)}>
+            <select className={`${SELECT_CLASS} flex-1`} value={pickUserId} onChange={(e) => setPickUserId(e.target.value)}>
               <option value="">Add a member…</option>
               {availableUsers.map((u) => (
                 <option key={u.id} value={u.id}>

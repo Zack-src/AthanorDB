@@ -98,7 +98,7 @@ export function TableSettingsPopover({
         createPortal(
           <div
             ref={popoverRef}
-            className="fixed z-[9999] flex w-[260px] flex-col gap-2.5 rounded-md border border-border-strong bg-surface p-3 shadow-lg nodrag"
+            className="fixed z-[9999] flex w-[268px] flex-col gap-3 rounded-lg border border-border-strong bg-surface-raised p-3.5 shadow-lg nodrag"
             style={{ left: popoverPos.x, top: popoverPos.y }}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}

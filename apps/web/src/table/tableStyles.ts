@@ -1,5 +1,7 @@
 /** Shared Tailwind classes for the table node (header/rows/badges) and its popovers (column properties / table settings). */
 
+import { INPUT_XS_CLASS, LABEL_XS_CLASS } from "../ui/inputStyles.js";
+
 export const ROW_CLASS =
   "group relative flex h-[calc(27px_*_var(--canvas-font-scale))] cursor-pointer items-center gap-[7px] " +
   "whitespace-nowrap border-t border-border px-2.5 transition-colors duration-100 hover:bg-surface-hover";
@@ -44,8 +46,14 @@ export const TABLE_HEADER_CLASS =
   "relative flex h-[calc(34px_*_var(--canvas-font-scale))] items-center gap-1.5 px-2 pl-2.5 " +
   "text-[calc(13px_*_var(--canvas-font-scale))] font-semibold text-white";
 export const TABLE_NAME_CLASS = "overflow-hidden text-ellipsis whitespace-nowrap tracking-[-0.01em]";
+/** Inline rename, sitting on the table's coloured header — glassy fill + white ring rather than a
+ *  light box punched into the header, so it reads as the same surface being edited. */
 export const TABLE_NAME_INPUT_CLASS =
-  "w-full rounded border-0 bg-surface px-[5px] py-0.5 text-[calc(13px_*_var(--canvas-font-scale))] font-semibold text-text";
+  "w-full rounded-md border border-white/25 bg-black/25 px-2 py-[3px] " +
+  "text-[calc(13px_*_var(--canvas-font-scale))] font-semibold text-white caret-white " +
+  "shadow-[inset_0_1px_2px_rgba(0,0,0,0.25)] backdrop-blur-[2px] placeholder:text-white/50 " +
+  "transition-[border-color,box-shadow] duration-150 ease-out " +
+  "focus:border-white/70 focus:outline-none focus:ring-[3px] focus:ring-white/20";
 
 export const HEADER_ACTIONS_CLASS =
   "ml-auto flex items-center gap-[3px] opacity-0 transition-opacity duration-100 " +
@@ -61,12 +69,14 @@ export const TABLE_ADD_BTN_CLASS =
   "text-[calc(11px_*_var(--canvas-font-scale))] font-medium text-text-muted transition-colors duration-100 " +
   "hover:border-border hover:bg-surface-hover hover:text-text";
 
-export const POPOVER_HEADER_CLASS = "flex items-center justify-between border-b border-border pb-1.5";
-export const POPOVER_TITLE_CLASS = "text-xs font-bold uppercase tracking-[0.04em] text-text-secondary";
-export const POPOVER_GROUP_CLASS = "flex flex-col gap-1";
-export const POPOVER_LABEL_CLASS = "text-[11px] font-semibold text-text-muted";
-export const POPOVER_INPUT_CLASS =
-  "w-full rounded-sm border border-border bg-bg px-2 py-[5px] text-xs text-text focus:border-primary focus:outline-none";
+export const POPOVER_HEADER_CLASS = "flex items-center justify-between border-b border-border pb-2";
+export const POPOVER_TITLE_CLASS = "text-[11px] font-bold uppercase tracking-[0.06em] text-text-secondary";
+export const POPOVER_GROUP_CLASS = "flex flex-col gap-1.5";
+export const POPOVER_LABEL_CLASS = `${LABEL_XS_CLASS} uppercase tracking-[0.04em]`;
+/** Popover fields use the app-wide dense field style so the canvas matches the rest of the UI. */
+export const POPOVER_INPUT_CLASS = `${INPUT_XS_CLASS} w-full`;
+/** Same, but for a value that is code-ish (default expressions, types). */
+export const POPOVER_INPUT_MONO_CLASS = `${INPUT_XS_CLASS} w-full font-mono`;
 
 export const FIELD_TYPE_CHIP_CLASS =
   "cursor-pointer rounded-full border border-border bg-bg px-[7px] py-0.5 font-mono text-[10.5px] text-text-secondary " +

@@ -49,6 +49,10 @@ export function TableNodeRow({
   return (
     <div
       className={`table-node-row ${ROW_CLASS} ${rowStateClass(isLinked, isSelected)}`}
+      // Whole row is the hover target for the column's note — the note icon is
+      // a 16px hit area, far too small to be the only way to read it.
+      data-tooltip={`${field.name} (${field.type})`}
+      {...(field.note ? { "data-tooltip-note": field.note } : {})}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
@@ -56,9 +60,7 @@ export function TableNodeRow({
     >
       <Handle type="target" position={Position.Left} id={`${field.id}-left-target`} className="table-row-handle" />
       <Handle type="source" position={Position.Left} id={`${field.id}-left-source`} className="table-row-handle" />
-      <span className={rowNameClass(isLinked)} data-tooltip={`${field.name} (${field.type})`}>
-        {field.name}
-      </span>
+      <span className={rowNameClass(isLinked)}>{field.name}</span>
       <FieldBadge field={field} isForeignKey={isForeignKey} isPk={isPk} />
 
       <div className={ROW_BADGES_CLASS}>
@@ -78,7 +80,11 @@ export function TableNodeRow({
           </span>
         )}
         {field.note && (
-          <span className={`${KW_BADGE_CLASS} ${KW_BADGE_COLOR.note}`} data-tooltip={field.note}>
+          <span
+            className={`${KW_BADGE_CLASS} ${KW_BADGE_COLOR.note}`}
+            data-tooltip={`${field.name} — note`}
+            data-tooltip-note={field.note}
+          >
             <NoteIcon size={16} />
           </span>
         )}

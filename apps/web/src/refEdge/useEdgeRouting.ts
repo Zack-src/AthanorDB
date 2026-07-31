@@ -150,7 +150,7 @@ export function useEdgeRouting(params: {
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
         target.isContentEditable ||
-        Boolean(target.closest(".monaco-editor, .cm-editor, .nokey, [contenteditable='true']"))
+        Boolean(target.closest(".cm-editor, .nokey, [contenteditable='true']"))
       ) {
         return;
       }

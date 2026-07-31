@@ -4,7 +4,7 @@ import { PlusIcon, TrashIcon } from "./Icons.js";
 import { Button } from "./ui/Button.js";
 import { Hint, ErrorText } from "./ui/Alert.js";
 import { List, ListMain, ListRow, EmptyState } from "./ui/List.js";
-import { INPUT_CLASS } from "./ui/inputStyles.js";
+import { SELECT_CLASS, SELECT_SM_CLASS } from "./ui/inputStyles.js";
 import type { PermissionLevel, ProjectSummary, ProjectTeamGrant, TeamSummary } from "./types.js";
 
 const PERMISSION_LEVELS: PermissionLevel[] = ["view", "edit", "administrator"];
@@ -71,7 +71,7 @@ function ProjectTeamsModal(props: { project: ProjectSummary; onClose: () => void
         (plus the creator and admins).
       </Hint>
       <div className="mb-7 flex max-w-[420px] gap-2">
-        <select className={INPUT_CLASS} value={pickTeamId} onChange={(e) => setPickTeamId(e.target.value)}>
+        <select className={SELECT_CLASS} value={pickTeamId} onChange={(e) => setPickTeamId(e.target.value)}>
           <option value="">Assign a team…</option>
           {availableTeams.map((t) => (
             <option key={t.id} value={t.id}>
@@ -79,7 +79,7 @@ function ProjectTeamsModal(props: { project: ProjectSummary; onClose: () => void
             </option>
           ))}
         </select>
-        <select className={INPUT_CLASS} value={pickPermission} onChange={(e) => setPickPermission(e.target.value as PermissionLevel)}>
+        <select className={SELECT_CLASS} value={pickPermission} onChange={(e) => setPickPermission(e.target.value as PermissionLevel)}>
           {PERMISSION_LEVELS.map((level) => (
             <option key={level} value={level}>
               {level}
@@ -101,7 +101,7 @@ function ProjectTeamsModal(props: { project: ProjectSummary; onClose: () => void
                 <span>{g.teamName}</span>
               </ListMain>
               <select
-                className={INPUT_CLASS}
+                className={SELECT_SM_CLASS}
                 value={g.permission}
                 onChange={(e) => setPermission(g.teamId, e.target.value as PermissionLevel)}
               >

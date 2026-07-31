@@ -11,7 +11,7 @@ export function useEditorKeyboardShortcuts(undoManager: Y.UndoManager | null, du
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
         target.isContentEditable ||
-        Boolean(target.closest(".monaco-editor, .cm-editor, .nokey, [contenteditable='true']"))
+        Boolean(target.closest(".cm-editor, .nokey, [contenteditable='true']"))
       ) {
         return;
       }

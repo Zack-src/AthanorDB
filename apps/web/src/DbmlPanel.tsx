@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Project } from "@athanordb/shared";
 import { projectToDbml } from "@athanordb/dbml-engine";
 import { ChevronLeftIcon, CodeIcon, LayoutGridIcon, SettingsIcon } from "./Icons.js";
 import { DbmlEditor, type DbmlEditorHandle } from "./dbmlEditor/DbmlEditor.js";
 import type { ServerProblem } from "./dbmlEditor/lint.js";
+import { dbmlSignature } from "./dbmlEditor/symbols.js";
 import { Button } from "./ui/Button.js";
 import { ErrorText } from "./ui/Alert.js";
 
@@ -98,6 +99,19 @@ function DbmlPanel(props: {
     localStorage.setItem(STORAGE_KEY_WIDTH, String(DEFAULT_PANEL_WIDTH));
   }, []);
 
+  /** Signature of the buffer, and a one-slot cache for the generated one — the
+   * project object changes on every canvas interaction (a table drag included),
+   * so this runs far more often than the document actually changes. */
+  const textSignature = useMemo(() => dbmlSignature(text), [text]);
+  const generatedSignatureRef = useRef<{ source: string; signature: string } | null>(null);
+  const signatureOf = useCallback((source: string) => {
+    const cached = generatedSignatureRef.current;
+    if (cached?.source === source) return cached.signature;
+    const signature = dbmlSignature(source);
+    generatedSignatureRef.current = { source, signature };
+    return signature;
+  }, []);
+
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
@@ -118,29 +132,35 @@ function DbmlPanel(props: {
       .catch((err) => setError((err as Error).message));
   }, [projectId]);
 
-  // Sync live project changes (e.g. node/ref deletions or modifications) into DBML text
+  // Sync live project changes (e.g. node/ref deletions or modifications) into DBML text.
+  // `projectToDbml` re-serializes the whole schema in its own canonical layout, so
+  // adopting it blindly would throw away the buffer's formatting and comments a few
+  // hundred ms after every edit. Only replace the text when the schema actually
+  // differs from what the buffer already declares.
   useEffect(() => {
     if (dirtyRef.current) return;
-    try {
-      const dbml = projectToDbml(project);
-      if (text !== dbml && lastAppliedTextRef.current !== dbml) {
-        setText(dbml);
+
+    const adopt = (dbml: string) => {
+      if (dirtyRef.current || lastAppliedTextRef.current === dbml || text === dbml) return;
+      if (signatureOf(dbml) === textSignature) {
+        // same schema, different layout — keep what the user is looking at
         lastAppliedTextRef.current = dbml;
-        setStatus("synced");
+        return;
       }
+      setText(dbml);
+      lastAppliedTextRef.current = dbml;
+      setStatus("synced");
+    };
+
+    try {
+      adopt(projectToDbml(project));
     } catch {
       fetch(`/api/projects/${projectId}/export/dbml`)
         .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`export failed (${res.status})`))))
-        .then((dbml) => {
-          if (dirtyRef.current) return;
-          if (text === dbml || lastAppliedTextRef.current === dbml) return;
-          setText(dbml);
-          lastAppliedTextRef.current = dbml;
-          setStatus("synced");
-        })
+        .then(adopt)
         .catch((err) => setError((err as Error).message));
     }
-  }, [project, projectId, text]);
+  }, [project, projectId, text, textSignature, signatureOf]);
 
   const applyNow = useCallback(
     (source: string) => {

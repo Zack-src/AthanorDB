@@ -24,7 +24,7 @@ export function EmptyTrashModal(props: { count: number; busy: boolean; error: st
       </Hint>
       <input
         autoFocus
-        className={INPUT_CLASS}
+        className={`${INPUT_CLASS} w-full`}
         value={confirmWord}
         onChange={(e) => setConfirmWord(e.target.value)}
         placeholder={CONFIRM_WORD}

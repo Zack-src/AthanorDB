@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PlusIcon, TrashIcon } from "./Icons.js";
+import { FolderIcon, PlusIcon, TrashIcon } from "./Icons.js";
 import { ProjectTeamsModal } from "./ProjectTeamsModal.js";
 import { PROJECT_SECTIONS, ProjectTabs } from "./projectList/ProjectTabs.js";
 import { ProjectCard } from "./projectList/ProjectCard.js";
@@ -8,7 +8,7 @@ import { EmptyTrashModal } from "./projectList/EmptyTrashModal.js";
 import { Button } from "./ui/Button.js";
 import { ErrorText } from "./ui/Alert.js";
 import { EmptyState } from "./ui/List.js";
-import { INPUT_CLASS } from "./ui/inputStyles.js";
+import { Input } from "./ui/Input.js";
 import type { ProjectStatus, ProjectSummary } from "./types.js";
 
 export function ProjectList(props: {
@@ -82,9 +82,10 @@ export function ProjectList(props: {
       <div className="mx-auto max-w-[880px]">
         <h1 className="mb-1 text-[22px] font-bold tracking-[-0.01em]">Projects</h1>
         <p className="mb-6 text-[13.5px] text-text-muted">DBML-native schema diagrams, versioned and shared live.</p>
-        <div className="mb-7 flex max-w-[420px] gap-2">
-          <input
-            className={`${INPUT_CLASS} flex-1`}
+        <div className="mb-7 flex max-w-[440px] gap-2">
+          <Input
+            wrapperClassName="flex-1"
+            icon={<FolderIcon size={14} />}
             placeholder="New project name"
             value={newName}
             onChange={(e) => onNewNameChange(e.target.value)}

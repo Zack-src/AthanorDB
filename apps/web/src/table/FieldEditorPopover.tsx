@@ -11,6 +11,7 @@ import {
   POPOVER_GROUP_CLASS,
   POPOVER_HEADER_CLASS,
   POPOVER_INPUT_CLASS,
+  POPOVER_INPUT_MONO_CLASS,
   POPOVER_LABEL_CLASS,
   POPOVER_TITLE_CLASS,
 } from "./tableStyles.js";
@@ -127,7 +128,7 @@ export function FieldEditorPopover({
         createPortal(
           <div
             ref={popoverRef}
-            className="fixed z-[9999] flex w-[290px] flex-col gap-2.5 rounded-md border border-border-strong bg-surface p-3 shadow-lg nodrag"
+            className="fixed z-[9999] flex w-[296px] flex-col gap-3 rounded-lg border border-border-strong bg-surface-raised p-3.5 shadow-lg nodrag"
             style={{ left: popoverPos.x, top: popoverPos.y }}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -150,6 +151,7 @@ export function FieldEditorPopover({
             <div className={POPOVER_GROUP_CLASS}>
               <label className={POPOVER_LABEL_CLASS}>Column Name</label>
               <input
+                autoFocus
                 className={POPOVER_INPUT_CLASS}
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
@@ -162,7 +164,7 @@ export function FieldEditorPopover({
             <div className={POPOVER_GROUP_CLASS}>
               <label className={POPOVER_LABEL_CLASS}>Data Type</label>
               <input
-                className={POPOVER_INPUT_CLASS}
+                className={POPOVER_INPUT_MONO_CLASS}
                 value={typeDraft}
                 onChange={(e) => setTypeDraft(e.target.value)}
                 onBlur={() => commitType()}
@@ -227,7 +229,7 @@ export function FieldEditorPopover({
             <div className={POPOVER_GROUP_CLASS}>
               <label className={POPOVER_LABEL_CLASS}>Default Value</label>
               <input
-                className={POPOVER_INPUT_CLASS}
+                className={POPOVER_INPUT_MONO_CLASS}
                 value={defaultDraft}
                 onChange={(e) => setDefaultDraft(e.target.value)}
                 onBlur={commitDefault}

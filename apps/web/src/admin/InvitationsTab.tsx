@@ -4,7 +4,7 @@ import { Button } from "../ui/Button.js";
 import { Badge } from "../ui/Badge.js";
 import { ErrorText } from "../ui/Alert.js";
 import { List, ListMain, ListRow, EmptyState } from "../ui/List.js";
-import { INPUT_CLASS } from "../ui/inputStyles.js";
+import { CHECKBOX_CLASS, INPUT_CLASS } from "../ui/inputStyles.js";
 import type { InvitationSummary } from "../types.js";
 
 const STATUS_TONE = { pending: "warning", accepted: "success", expired: "danger" } as const;
@@ -73,7 +73,12 @@ export function InvitationsTab() {
           onKeyDown={(e) => e.key === "Enter" && create()}
         />
         <label className="flex items-center gap-1.5 whitespace-nowrap text-[13px] text-text-muted">
-          <input type="checkbox" checked={isAdmin} onChange={(e) => setIsAdmin(e.target.checked)} />
+          <input
+            type="checkbox"
+            className={CHECKBOX_CLASS}
+            checked={isAdmin}
+            onChange={(e) => setIsAdmin(e.target.checked)}
+          />
           Admin
         </label>
         <Button variant="primary" onClick={create} disabled={busy || !email.trim()}>

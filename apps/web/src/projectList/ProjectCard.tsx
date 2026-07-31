@@ -1,7 +1,7 @@
 import { ArchiveIcon, FolderIcon, PencilIcon, RestoreIcon, TrashIcon, UsersIcon } from "../Icons.js";
 import { Button } from "../ui/Button.js";
 import { Badge } from "../ui/Badge.js";
-import { INPUT_CLASS } from "../ui/inputStyles.js";
+import { INPUT_SM_CLASS } from "../ui/inputStyles.js";
 import type { ProjectStatus, ProjectSummary } from "../types.js";
 
 /** One project tile: open-on-click, plus the per-section action buttons (rename/teams/archive/restore/trash/delete) admins get. */
@@ -138,7 +138,7 @@ export function ProjectCard(props: {
       {isRenaming ? (
         <input
           autoFocus
-          className={`${INPUT_CLASS} mb-0.5 w-full px-1.5 py-0.5 text-sm font-semibold`}
+          className={`${INPUT_SM_CLASS} mb-0.5 w-full font-semibold`}
           value={props.nameDraft}
           maxLength={200}
           onClick={(e) => e.stopPropagation()}

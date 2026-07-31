@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { Comment } from "@athanordb/shared";
 import { CloseIcon, CommentIcon } from "./Icons.js";
 import { Button } from "./ui/Button.js";
+import { TEXTAREA_SM_CLASS } from "./ui/inputStyles.js";
 
 /** "2026-07-29T09:31:59.868Z" -> "2026-07-29 09:31:59" — matches the plain UTC-timestamp style the revision history list already uses. */
 function formatTimestamp(iso: string): string {
@@ -117,7 +118,7 @@ export function CommentThread(props: {
             </div>
             <div className="flex gap-1.5 border-t border-border p-2">
               <textarea
-                className="min-h-[44px] flex-1 resize-none rounded-sm border border-border bg-surface px-2 py-1.5 text-[12.5px] text-text focus:border-primary focus:outline-none"
+                className={`${TEXTAREA_SM_CLASS} flex-1`}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Add a comment…"

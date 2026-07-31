@@ -99,8 +99,14 @@ button {
 /* Same reasoning as the `button` reset above — native OS-drawn input/select
    chrome (inset border, background, corner radius) isn't reset without
    preflight, so it shows through underneath the Tailwind border/radius
-   classes instead of a single flat one. */
-input:not([type="checkbox"]):not([type="radio"]),
+   classes instead of a single flat one.
+
+   Deliberately kept at element specificity (0,0,1): the previous
+   `input:not([type="checkbox"]):not([type="radio"])` form scored 0,2,1 and so
+   beat every utility class, meaning `bg-*`/`rounded-*` on a field silently did
+   nothing and all inputs rendered transparent with square corners. These are
+   defaults for un-styled fields; any Tailwind class must be able to win. */
+input,
 select,
 textarea {
   appearance: none;
@@ -108,6 +114,23 @@ textarea {
   margin: 0;
   background-color: transparent;
   border-radius: 0;
+}
+
+/* …except checkboxes/radios, which need their native box back (higher
+   specificity than the element-level reset above). */
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: auto;
+  -webkit-appearance: auto;
+}
+
+/* Chevron for <select> (see SELECT_CLASS in ui/inputStyles.ts). Inline SVG so
+   it stays self-hosted, `right` positioned so it survives any padding change. */
+.app-select {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='12'%20height='12'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23a9adb7'%20stroke-width='2.2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m6%209%206%206%206-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px 12px;
 }
 
 /* Chrome/Edge paint autofilled fields (name/email fields are exactly what

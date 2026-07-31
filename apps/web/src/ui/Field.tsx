@@ -1,13 +1,19 @@
-import type { InputHTMLAttributes, ReactNode } from "react";
-import { INPUT_CLASS } from "./inputStyles.js";
+import type { ReactNode } from "react";
+import { Input, type InputProps } from "./Input.js";
+import { LABEL_CLASS } from "./inputStyles.js";
 
-/** Vertically-stacked label + input, used on auth screens and settings forms. */
-export function Field(props: { label: ReactNode } & InputHTMLAttributes<HTMLInputElement>) {
-  const { label, className = "", ...rest } = props;
+/** Vertically-stacked label + field, used on auth screens and settings forms. Pass `hint` for helper text, `error` for a validation message (which also turns the field red). */
+export function Field(props: { label: ReactNode; hint?: ReactNode; error?: ReactNode } & InputProps) {
+  const { label, hint, error, className = "", ...rest } = props;
   return (
-    <label className="mb-3.5 flex flex-col gap-1 text-[12.5px] text-text-muted">
-      {label}
-      <input className={`${INPUT_CLASS} ${className}`.trim()} {...rest} />
+    <label className="mb-4 flex flex-col gap-1.5">
+      <span className={LABEL_CLASS}>{label}</span>
+      <Input className={className} invalid={Boolean(error)} wrapperClassName="w-full" {...rest} />
+      {error ? (
+        <span className="text-[11.5px] text-danger">{error}</span>
+      ) : hint ? (
+        <span className="text-[11.5px] text-text-muted">{hint}</span>
+      ) : null}
     </label>
   );
 }
