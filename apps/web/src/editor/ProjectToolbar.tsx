@@ -1,10 +1,8 @@
-import { DisplayNameField } from "../DisplayNameField.js";
 import { PresenceList } from "../PresenceList.js";
 import type { AwarenessState, ConnectionStatus } from "../yjsClient.js";
 import { Button } from "../ui/Button.js";
 import { BrandMark } from "../ui/BrandMark.js";
 import { Badge, CountBadge } from "../ui/Badge.js";
-import { APP_HEADER, TOOLBAR_DIVIDER, TOOLBAR_GROUP, TOOLBAR_SPACER } from "../ui/layout.js";
 import {
   ChevronLeftIcon,
   ClockIcon,
@@ -104,9 +102,15 @@ export function ProjectToolbar(props: ProjectToolbarProps) {
           <Button size="sm" variant="ghost" onClick={props.onShowPlugins} className="text-xs">
             <PuzzleIcon size={13} /> Plugins
           </Button>
+          <Button size="sm" variant="ghost" onClick={props.onShowValidation} className="text-xs gap-1.5" data-tooltip="Vérifier le schéma">
+            <ShieldCheckIcon size={13} /> Validation
+            {props.validationCount > 0 && <CountBadge count={props.validationCount} danger={props.hasValidationErrors} />}
+          </Button>
         </div>
 
         <span className="w-px h-4 bg-border/60 mx-1" />
+
+        <ConnectionIndicator connection={props.connection} synced={props.synced} />
 
         <PresenceList localName={props.localUser} localColor={props.localColor} remote={props.remoteAwareness} />
 

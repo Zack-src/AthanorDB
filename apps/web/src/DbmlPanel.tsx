@@ -10,18 +10,17 @@ import { dbmlSignature } from "./dbmlEditor/symbols.js";
 import { Button } from "./ui/Button.js";
 import { ErrorText } from "./ui/Alert.js";
 
-type SyncStatus = "idle" | "typing" | "syncing" | "synced" | "error";
+type SyncStatus = "idle" | "typing" | "syncing" | "synced";
 
 const DOT_TONE: Record<Exclude<SyncStatus, "idle">, string> = {
   typing: "bg-text-muted",
   syncing: "animate-pulse bg-warning",
   synced: "bg-success",
-  error: "bg-danger",
 };
 
 function SyncStatusPill({ status }: { status: SyncStatus }) {
   if (status === "idle") return null;
-  const label = { typing: "Editing…", syncing: "Syncing…", synced: "Synced", error: "Sync error" }[status];
+  const label = { typing: "Editing…", syncing: "Syncing…", synced: "Synced" }[status];
   return (
     <span className="inline-flex items-center gap-1 text-[11.5px] text-text-muted">
       <span className={`h-1.5 w-1.5 rounded-full ${DOT_TONE[status]}`} />
@@ -133,7 +132,13 @@ function DbmlPanel(props: {
         lastAppliedTextRef.current = dbml;
         setStatus("synced");
       })
-      .catch((err) => setError((err as Error).message));
+      .catch((err) => {
+        // The one sync failure that's actually blocking (nothing loaded at
+        // all, nothing to fall back to visually) still gets a message —
+        // everything else in this file is transient and just logged.
+        console.error("[dbml] failed to load initial DBML:", err);
+        setError("Impossible de charger le DBML. Réessayez ou rechargez la page.");
+      });
   }, [projectId]);
 
   // Sync live project changes (e.g. node/ref deletions or modifications) into DBML text.
@@ -158,11 +163,14 @@ function DbmlPanel(props: {
 
     try {
       adopt(projectToDbml(project));
-    } catch {
+    } catch (err) {
+      // Background reconciliation, not a user action — log it and retry via
+      // the server's own serializer rather than surfacing it as an error.
+      console.error("[dbml] client-side re-serialization failed, falling back to server export:", err);
       fetch(`/api/projects/${projectId}/export/dbml`)
         .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`export failed (${res.status})`))))
         .then(adopt)
-        .catch((err) => setError((err as Error).message));
+        .catch((fallbackErr) => console.error("[dbml] fallback export also failed:", fallbackErr));
     }
   }, [project, projectId, text, textSignature, signatureOf]);
 
@@ -181,22 +189,32 @@ function DbmlPanel(props: {
             setError(null);
             setProblem(null);
             setStatus("synced");
-          } else {
-            const data = await res.json().catch(() => ({}));
-            const message = data.error ?? `Import failed (${res.status})`;
-            setError(message);
-            setProblem(
-              typeof data.line === "number"
-                ? { message, line: data.line, column: data.column, endLine: data.endLine, endColumn: data.endColumn }
-                : null,
-            );
-            setStatus("error");
+            return;
           }
+          const data = await res.json().catch(() => ({}));
+          const message = data.error ?? `Import failed (${res.status})`;
+          if (typeof data.line === "number") {
+            // A real DBML validation problem — actionable, stays visible
+            // next to the editor (not a transport/sync failure).
+            setError(message);
+            setProblem({ message, line: data.line, column: data.column, endLine: data.endLine, endColumn: data.endColumn });
+          } else {
+            // Rejected for some other reason (permissions, a malformed
+            // request) — not something typing more DBML fixes, so it isn't
+            // shown as an editor error; logged for later debugging instead.
+            console.error("[dbml] import rejected:", message);
+            setError(null);
+            setProblem(null);
+          }
+          // Buffer still has unsynced content either way — reflect that
+          // with the same muted dot editing uses, not an alarming state.
+          setStatus("typing");
         })
         .catch((err) => {
-          setError((err as Error).message);
+          console.error("[dbml] network failure while syncing:", err);
+          setError(null);
           setProblem(null);
-          setStatus("error");
+          setStatus("typing");
         });
     },
     [projectId],
