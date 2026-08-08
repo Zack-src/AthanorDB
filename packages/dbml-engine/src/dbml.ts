@@ -162,14 +162,19 @@ export function toProject(database: any, projectName = "Untitled", source?: stri
     };
   });
 
-  const enums = (schema?.enums ?? []).map((e: any) => ({
+  // DBML has no notion of enum position (same as zones/sticky notes) — lay
+  // fresh imports out in their own grid band below every table's, so a
+  // first import doesn't stack every enum node on top of table id `0,0`.
+  const enumGridStartRow = Math.ceil(tables.length / 6) + 1;
+  const enums = (schema?.enums ?? []).map((e: any, i: number) => ({
     id: String(e.id ?? e.name),
     name: e.name,
-    values: (e.values ?? []).map((v: any, i: number) => ({
-      id: String(v.id ?? `${e.name}-${i}`),
+    values: (e.values ?? []).map((v: any, vi: number) => ({
+      id: String(v.id ?? `${e.name}-${vi}`),
       name: v.name,
       note: v.note ?? undefined,
     })),
+    position: { x: (i % 6) * 320, y: (enumGridStartRow + Math.floor(i / 6)) * 400 },
   }));
 
   return {
@@ -208,9 +213,11 @@ export function projectToSql(project: Project, dialect: SqlDialect): string {
  * so always `undefined` on `incoming`) only fill in for genuinely new tables.
  * Same idea for zones/sticky notes, which have no per-table anchor to match
  * by: `existing`'s take priority, `incoming`'s (sidecar-only, never
- * DBML-native) only seed a project that doesn't have any yet. Refs and enums
- * carry no visual metadata (yet) and are taken wholesale from `incoming`,
- * remapped onto the merged ids.
+ * DBML-native) only seed a project that doesn't have any yet. Enums are
+ * matched by name like tables (a field's `type` names an enum by string,
+ * never by id, so there's no cross-reference to remap) and keep the same
+ * existing-position-wins/reserve-a-free-slot treatment. Refs carry no visual
+ * metadata and are taken wholesale from `incoming`, remapped onto the merged ids.
  */
 const GRID_COL_WIDTH = 320;
 const GRID_ROW_HEIGHT = 400;
@@ -303,12 +310,29 @@ export function mergeProjectIntoExisting(existing: Project, incoming: Project): 
     },
   }));
 
+  // Enums round-trip the same way tables do now that they carry a canvas
+  // position: matched by name (no cross-references to remap — a field's
+  // `type` names an enum by string, never by id) so an existing node keeps
+  // its id/position/value-ids across a resync, and only a genuinely new
+  // enum gets a fresh id and a free grid slot.
+  const existingEnumsByName = new Map(existing.enums.map((e) => [e.name, e]));
+  const enums = incoming.enums.map((enumDef) => {
+    const prev = existingEnumsByName.get(enumDef.name);
+    const prevValuesByName = new Map((prev?.values ?? []).map((v) => [v.name, v]));
+    return {
+      ...enumDef,
+      id: prev?.id ?? crypto.randomUUID(),
+      values: enumDef.values.map((v) => ({ ...v, id: prevValuesByName.get(v.name)?.id ?? crypto.randomUUID() })),
+      position: prev?.position ?? reservePosition(enumDef.position),
+    };
+  });
+
   return {
     id: existing.id,
     name: existing.name,
     tables,
     refs,
-    enums: incoming.enums,
+    enums,
     zones: existing.zones.length > 0 ? existing.zones : incoming.zones,
     stickyNotes: existing.stickyNotes.length > 0 ? existing.stickyNotes : incoming.stickyNotes,
   };

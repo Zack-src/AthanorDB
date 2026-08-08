@@ -2,12 +2,14 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { applyNodeChanges, type NodeChange } from "@xyflow/react";
 import {
+  getEnumsMap,
   getMetaMap,
   getRefsMap,
   getStickyNotesMap,
   getTablesMap,
   getZonesMap,
   type Comment,
+  type EnumValue,
   type Field,
   type Project,
 } from "@athanordb/shared";
@@ -15,6 +17,7 @@ import { DEFAULT_PALETTE } from "../ColorSwatchPicker.js";
 import type { ZoneNodeType } from "../ZoneNode.js";
 import type { TableNodeType } from "../TableNode.js";
 import type { StickyNoteNodeType } from "../StickyNoteNode.js";
+import type { EnumNodeType } from "../EnumNode.js";
 import type { CursorNodeType } from "../CursorNode.js";
 import type { CanvasNode } from "../types.js";
 import { DEFAULT_TABLE_HEIGHT, DEFAULT_TABLE_WIDTH } from "../refGeometry.js";
@@ -170,7 +173,51 @@ export function useCanvasNodes(
       },
     }));
 
-    return [...zoneNodes, ...tableNodes, ...stickyNodes];
+    const enumNodes: EnumNodeType[] = liveProject.enums.map((enumDef) => ({
+      id: enumDef.id,
+      position: enumDef.position,
+      type: "enum",
+      data: {
+        enumDef,
+        onRename: (name: string) => {
+          const enums = getEnumsMap(doc);
+          const current = enums.get(enumDef.id);
+          if (current) enums.set(enumDef.id, { ...current, name });
+        },
+        onAddValue: () => {
+          const enums = getEnumsMap(doc);
+          const current = enums.get(enumDef.id);
+          if (!current) return;
+          const value: EnumValue = { id: crypto.randomUUID(), name: `value_${current.values.length + 1}` };
+          enums.set(enumDef.id, { ...current, values: [...current.values, value] });
+        },
+        onRenameValue: (valueId: string, name: string) => {
+          const enums = getEnumsMap(doc);
+          const current = enums.get(enumDef.id);
+          if (!current) return;
+          enums.set(enumDef.id, { ...current, values: current.values.map((v) => (v.id === valueId ? { ...v, name } : v)) });
+        },
+        onDeleteValue: (valueId: string) => {
+          const enums = getEnumsMap(doc);
+          const current = enums.get(enumDef.id);
+          if (!current) return;
+          enums.set(enumDef.id, { ...current, values: current.values.filter((v) => v.id !== valueId) });
+        },
+        onReorderValue: (valueId: string, direction: "up" | "down") => {
+          const enums = getEnumsMap(doc);
+          const current = enums.get(enumDef.id);
+          if (!current) return;
+          const index = current.values.findIndex((v) => v.id === valueId);
+          const swapWith = direction === "up" ? index - 1 : index + 1;
+          if (index < 0 || swapWith < 0 || swapWith >= current.values.length) return;
+          const values = [...current.values];
+          [values[index], values[swapWith]] = [values[swapWith], values[index]];
+          enums.set(enumDef.id, { ...current, values });
+        },
+      },
+    }));
+
+    return [...zoneNodes, ...tableNodes, ...stickyNodes, ...enumNodes];
   }, [liveProject, doc, refFieldIdsByTable, user, highlightLinks, onGoToDbml]);
 
   // Resetting during render (React's documented pattern for "adjust state
@@ -221,7 +268,7 @@ export function useCanvasNodes(
           const zw = zoneNode.width ?? 0;
           const zh = zoneNode.height ?? 0;
           for (const other of nodes) {
-            if (other.type !== "table" && other.type !== "sticky") continue;
+            if (other.type !== "table" && other.type !== "sticky" && other.type !== "enum") continue;
             const w = other.measured?.width ?? (other.type === "sticky" ? other.width : undefined) ?? DEFAULT_TABLE_WIDTH;
             const h = other.measured?.height ?? (other.type === "sticky" ? other.height : undefined) ?? DEFAULT_TABLE_HEIGHT;
             const cx = other.position.x + w / 2;
@@ -251,6 +298,7 @@ export function useCanvasNodes(
       const tables = getTablesMap(doc);
       const zones = getZonesMap(doc);
       const stickyNotes = getStickyNotesMap(doc);
+      const enums = getEnumsMap(doc);
       for (const change of allChanges) {
         if (change.type === "position" && change.position && change.dragging === false) {
           if (tables.has(change.id)) {
@@ -262,6 +310,9 @@ export function useCanvasNodes(
           } else if (stickyNotes.has(change.id)) {
             const current = stickyNotes.get(change.id);
             if (current) stickyNotes.set(change.id, { ...current, position: change.position });
+          } else if (enums.has(change.id)) {
+            const current = enums.get(change.id);
+            if (current) enums.set(change.id, { ...current, position: change.position });
           }
         } else if (change.type === "remove") {
           if (tables.has(change.id)) {
@@ -274,6 +325,8 @@ export function useCanvasNodes(
             zones.delete(change.id);
           } else if (stickyNotes.has(change.id)) {
             stickyNotes.delete(change.id);
+          } else if (enums.has(change.id)) {
+            enums.delete(change.id);
           }
         }
       }

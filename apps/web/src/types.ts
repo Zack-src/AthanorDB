@@ -1,9 +1,10 @@
 import type { TableNodeType } from "./TableNode.js";
 import type { ZoneNodeType } from "./ZoneNode.js";
 import type { StickyNoteNodeType } from "./StickyNoteNode.js";
+import type { EnumNodeType } from "./EnumNode.js";
 import type { CursorNodeType } from "./CursorNode.js";
 
-export type CanvasNode = TableNodeType | ZoneNodeType | StickyNoteNodeType;
+export type CanvasNode = TableNodeType | ZoneNodeType | StickyNoteNodeType | EnumNodeType;
 export type AllNodes = CanvasNode | CursorNodeType;
 
 export type ProjectStatus = "active" | "archived" | "trashed";

@@ -27,8 +27,9 @@ import { TableNode } from "./TableNode.js";
 import { RefEdge, type RefEdgeType } from "./RefEdge.js";
 import { ZoneNode } from "./ZoneNode.js";
 import { StickyNoteNode } from "./StickyNoteNode.js";
+import { EnumNode } from "./EnumNode.js";
 import { CursorNode, type CursorNodeType } from "./CursorNode.js";
-import { ChevronRightIcon, FrameIcon, LinkIcon, MinimapIcon, NoteIcon, PuzzleIcon, TableIcon } from "./Icons.js";
+import { ChevronRightIcon, FrameIcon, LinkIcon, MinimapIcon, NoteIcon, PuzzleIcon, TableIcon, TagIcon } from "./Icons.js";
 import { FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadShowMinimap, loadViewport, saveShowMinimap, viewportKey } from "./localPrefs.js";
 import { CONTEXT_MENU_CLASS, CONTEXT_MENU_ITEM_CLASS } from "./ui/contextMenuStyles.js";
 import {
@@ -43,7 +44,7 @@ import { SWATCH_CELL_CLASS } from "./ColorSwatchPicker.js";
 import type { CanvasCommandContribution, ResolvedContribution } from "./plugins/types.js";
 import type { AllNodes, CanvasExportHandle, CanvasNode } from "./types.js";
 
-const nodeTypes = { table: TableNode, zone: ZoneNode, sticky: StickyNoteNode, cursor: CursorNode };
+const nodeTypes = { table: TableNode, zone: ZoneNode, sticky: StickyNoteNode, enum: EnumNode, cursor: CursorNode };
 const edgeTypes = { ref: RefEdge };
 
 /**
@@ -88,6 +89,7 @@ function CanvasContextMenu(props: {
   onAddTable: (position: { x: number; y: number }) => void;
   onAddZone: (position: { x: number; y: number }) => void;
   onAddNote: (position: { x: number; y: number }) => void;
+  onAddEnum: (position: { x: number; y: number }) => void;
   onClose: () => void;
 }) {
   const { menu } = props;
@@ -105,6 +107,9 @@ function CanvasContextMenu(props: {
       </button>
       <button className={CONTEXT_MENU_ITEM_CLASS} onClick={() => run(props.onAddNote)}>
         <NoteIcon size={14} /> Add sticky note
+      </button>
+      <button className={CONTEXT_MENU_ITEM_CLASS} onClick={() => run(props.onAddEnum)}>
+        <TagIcon size={14} /> Add enum
       </button>
     </div>
   );
@@ -374,6 +379,7 @@ export function CanvasArea(props: {
   onAddTable: (position: { x: number; y: number }) => void;
   onAddZone: (position: { x: number; y: number }) => void;
   onAddNote: (position: { x: number; y: number }) => void;
+  onAddEnum: (position: { x: number; y: number }) => void;
   /** Applies a header color to every currently-selected table at once — shown by the selection toolbar once 2+ tables are selected. */
   onSetTablesColor: (tableIds: string[], color: string) => void;
   palette: string[];
@@ -588,6 +594,16 @@ export function CanvasArea(props: {
             >
               <NoteIcon size={15} />
             </button>
+            <button
+              type="button"
+              className={CANVAS_TOOLBAR_ICON_BTN_CLASS}
+              onClick={() => props.onAddEnum(paneCenter())}
+              data-tooltip="Add enum"
+              data-tooltip-pos="bottom"
+              aria-label="Add enum"
+            >
+              <TagIcon size={15} />
+            </button>
 
             <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
             <DetailLevelDropdown value={props.activeDetailLevel} onChange={props.onSetDetailLevel} />
@@ -667,6 +683,7 @@ export function CanvasArea(props: {
           onAddTable={props.onAddTable}
           onAddZone={props.onAddZone}
           onAddNote={props.onAddNote}
+          onAddEnum={props.onAddEnum}
           onClose={closeMenu}
         />
       )}

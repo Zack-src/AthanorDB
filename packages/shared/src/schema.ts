@@ -93,6 +93,8 @@ export interface EnumDef {
   id: Id;
   name: string;
   values: EnumValue[];
+  /** Canvas position — DBML has no notion of it (like zones/sticky notes), assigned/preserved on import same as a table's. */
+  position: Position;
 }
 
 export interface Zone {

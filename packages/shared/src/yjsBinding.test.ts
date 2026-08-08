@@ -38,7 +38,7 @@ function sampleProject(): Project {
         cardinality: "one-to-many",
       },
     ],
-    enums: [{ id: "e1", name: "status", values: [{ id: "v1", name: "active" }] }],
+    enums: [{ id: "e1", name: "status", values: [{ id: "v1", name: "active" }], position: { x: 0, y: 400 } }],
     zones: [
       {
         id: "z1",

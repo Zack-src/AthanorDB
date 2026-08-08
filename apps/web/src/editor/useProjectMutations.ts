@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import * as Y from "yjs";
 import type { Connection } from "@xyflow/react";
-import { getRefsMap, getStickyNotesMap, getTablesMap, getZonesMap, type DetailLevel, type Project } from "@athanordb/shared";
+import { getEnumsMap, getRefsMap, getStickyNotesMap, getTablesMap, getZonesMap, type DetailLevel, type Project } from "@athanordb/shared";
 import { computeAutoLayout } from "../autoLayout.js";
 import type { RefEdgeType } from "../RefEdge.js";
 import type { CanvasNode } from "../types.js";
@@ -52,6 +52,19 @@ export function useProjectMutations(liveProject: Project | null, doc: Y.Doc | nu
       position: position ?? { x: 60, y: 60 },
       size: { width: 160, height: 120 },
       style: { color: "#fef08a" },
+    });
+  };
+
+  const addEnum = (position?: { x: number; y: number }) => {
+    if (!doc) return;
+    const enums = getEnumsMap(doc);
+    const id = crypto.randomUUID();
+    const index = enums.size;
+    enums.set(id, {
+      id,
+      name: `enum_${index + 1}`,
+      values: [{ id: crypto.randomUUID(), name: "value_1" }],
+      position: position ?? { x: 40, y: 40 },
     });
   };
 
@@ -131,6 +144,17 @@ export function useProjectMutations(liveProject: Project | null, doc: Y.Doc | nu
           const src = node.data.note;
           const id = crypto.randomUUID();
           stickyNotes.set(id, { ...src, id, position: { x: src.position.x + OFFSET, y: src.position.y + OFFSET } });
+        } else if (node.type === "enum") {
+          const enums = getEnumsMap(doc);
+          const src = node.data.enumDef;
+          const id = crypto.randomUUID();
+          enums.set(id, {
+            ...src,
+            id,
+            name: `${src.name}_copy`,
+            position: { x: src.position.x + OFFSET, y: src.position.y + OFFSET },
+            values: src.values.map((v) => ({ ...v, id: crypto.randomUUID() })),
+          });
         }
       }
     });
@@ -195,6 +219,7 @@ export function useProjectMutations(liveProject: Project | null, doc: Y.Doc | nu
     addTable,
     addZone,
     addStickyNote,
+    addEnum,
     setAllDetailLevels,
     activeDetailLevel,
     autoLayout,
