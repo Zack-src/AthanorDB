@@ -1,9 +1,8 @@
-import { useState } from "react";
 import { ProjectList } from "./ProjectList.js";
 import { Navbar } from "./Navbar.js";
-import { SettingsModal } from "./SettingsModal.js";
 import { ErrorText } from "./ui/Alert.js";
 import { APP_SHELL } from "./ui/layout.js";
+import type { CreateProjectResult } from "./hooks/useProjects.js";
 import type { ProjectStatus, ProjectSummary, Session } from "./types.js";
 
 export interface ProjectListScreenProps {
@@ -17,7 +16,7 @@ export interface ProjectListScreenProps {
   onOpenSettings?: () => void;
   onLogout: () => void;
   onDisplayNameChange: (name: string) => void;
-  onCreateProject: (name: string) => Promise<string | null>;
+  onCreateProject: (name: string) => Promise<CreateProjectResult>;
   onRenameProject: (p: ProjectSummary, name: string) => Promise<void>;
   onSetProjectStatus: (p: ProjectSummary, status: ProjectStatus) => Promise<void>;
   onDeleteProjectForever: (p: ProjectSummary) => Promise<string | null>;
@@ -25,18 +24,6 @@ export interface ProjectListScreenProps {
 }
 
 export function ProjectListScreen(props: ProjectListScreenProps) {
-  const [newName, setNewName] = useState("");
-  const [createError, setCreateError] = useState<string | null>(null);
-
-  const handleCreate = async () => {
-    const name = newName.trim();
-    if (!name) return;
-    setCreateError(null);
-    const error = await props.onCreateProject(name);
-    if (error) setCreateError(error);
-    else setNewName("");
-  };
-
   return (
     <div className={APP_SHELL}>
       <Navbar
@@ -45,8 +32,8 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
         onOpenLanding={props.onOpenLanding}
         onOpenSettings={props.onOpenSettings}
         onOpenAdmin={props.onOpenAdmin}
+        onLogout={props.onLogout}
       />
-
 
       {props.openLinkError && (
         <div className="p-4">
@@ -57,13 +44,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
       <div className="min-h-0 flex-1">
         <ProjectList
           projects={props.projects}
-          newName={newName}
-          onNewNameChange={(v) => {
-            setNewName(v);
-            setCreateError(null);
-          }}
-          onCreate={handleCreate}
-          createError={createError}
+          onCreateProject={props.onCreateProject}
           onOpen={props.onOpenProject}
           onRename={props.onRenameProject}
           onSetStatus={props.onSetProjectStatus}

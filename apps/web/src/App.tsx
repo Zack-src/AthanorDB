@@ -51,9 +51,12 @@ export function App() {
       <div className={APP_SHELL}>
         <ProjectEditor
           project={routing.openProject}
-          user={session.displayName}
-          userId={session.id}
+          session={session}
           onDisplayNameChange={updateDisplayName}
+          onLogout={() => {
+            logout();
+            setViewMode("landing");
+          }}
           onBack={routing.closeProject}
         />
       </div>

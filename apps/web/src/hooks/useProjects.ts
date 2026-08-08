@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ProjectStatus, ProjectSummary } from "../types.js";
 
+export type CreateProjectResult = { id: string } | { error: string };
+
 export interface ProjectsHandle {
   projects: ProjectSummary[];
   refreshProjects: () => void;
-  createProject: (name: string) => Promise<string | null>;
+  createProject: (name: string) => Promise<CreateProjectResult>;
   renameProject: (p: ProjectSummary, name: string) => Promise<void>;
   setProjectStatus: (p: ProjectSummary, status: ProjectStatus) => Promise<void>;
   deleteProjectForever: (p: ProjectSummary) => Promise<string | null>;
@@ -33,21 +35,21 @@ export function useProjects(active: boolean): ProjectsHandle {
   // fetched list is simply not shown, and it is refetched on the next login.
   const projects = active ? fetched : EMPTY_PROJECTS;
 
-  const createProject = async (name: string): Promise<string | null> => {
+  const createProject = async (name: string): Promise<CreateProjectResult> => {
     try {
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         refreshProjects();
-        return null;
+        return { id: data.id as string };
       }
-      const data = await res.json().catch(() => ({}));
-      return data.error ?? `Create failed (${res.status})`;
+      return { error: data.error ?? `Create failed (${res.status})` };
     } catch (err) {
-      return err instanceof Error ? err.message : "Network error";
+      return { error: err instanceof Error ? err.message : "Network error" };
     }
   };
 

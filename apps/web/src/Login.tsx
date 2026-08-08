@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LogoMarkIcon, SparklesIcon, ChevronLeftIcon, CheckIcon, KeyIcon } from "./Icons.js";
+import { LogoMarkIcon, ChevronLeftIcon, KeyIcon } from "./Icons.js";
 import { Button } from "./ui/Button.js";
 import { Field } from "./ui/Field.js";
 import { ErrorText } from "./ui/Alert.js";
@@ -80,7 +80,7 @@ export function Login({ onLoggedIn, onBackToLanding }: LoginProps) {
               ]}
               activeTab={tab}
               onChange={(t) => {
-                setTab(t as any);
+                setTab(t);
                 setError(null);
               }}
             />

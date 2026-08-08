@@ -1,7 +1,8 @@
 import { BrandMark } from "./ui/BrandMark.js";
 import { Button } from "./ui/Button.js";
 import { Badge } from "./ui/Badge.js";
-import { SettingsIcon, UsersIcon, SparklesIcon } from "./Icons.js";
+import { StatusPill } from "./ui/StatusPill.js";
+import { SettingsIcon, UsersIcon, SparklesIcon, LogOutIcon } from "./Icons.js";
 import type { Session } from "./types.js";
 
 export interface NavbarProps {
@@ -10,6 +11,7 @@ export interface NavbarProps {
   onOpenLanding?: () => void;
   onOpenSettings?: () => void;
   onOpenAdmin?: () => void;
+  onLogout?: () => void;
   onDisplayNameChange?: (name: string) => void;
   title?: string;
   onBack?: () => void;
@@ -22,6 +24,7 @@ export function Navbar({
   onOpenLanding,
   onOpenSettings,
   onOpenAdmin,
+  onLogout,
   title = "AthanorDB",
   onBack,
 }: NavbarProps) {
@@ -44,6 +47,9 @@ export function Navbar({
         )}
 
         <Badge tone="admin" className="hidden sm:inline-flex">v0.0.1 Open-Core</Badge>
+        <span className="hidden lg:inline-flex">
+          <StatusPill status={serverStatus} />
+        </span>
       </div>
 
       <div className="flex items-center gap-3">
@@ -82,6 +88,12 @@ export function Navbar({
             className="hidden md:inline-flex gap-1.5 text-xs"
           >
             <SparklesIcon size={13} /> Cloud Pro
+          </Button>
+        )}
+
+        {onLogout && (
+          <Button variant="ghost" size="icon" onClick={onLogout} data-tooltip="Se déconnecter" data-tooltip-pos="bottom">
+            <LogOutIcon size={14} />
           </Button>
         )}
       </div>

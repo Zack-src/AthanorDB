@@ -35,7 +35,24 @@ export default defineConfig({
   server: {
     port: WEB_PORT,
     proxy: {
-      "/api": `http://localhost:${API_PORT}`,
+      "/api": {
+        target: `http://localhost:${API_PORT}`,
+        // The server's CSRF defence (apps/server/src/index.ts) compares the
+        // browser's `Origin` header against the `Host` header it actually
+        // received. node-http-proxy rewrites `Host` to the proxy *target*
+        // by default regardless of `changeOrigin`, so every state-changing
+        // request (login included) arrived at the server as
+        // `Origin: localhost:5173` / `Host: localhost:3001` and got a 403 —
+        // dev-only breakage the production build never hits (one process,
+        // one origin, no proxy). Force the original inbound Host back onto
+        // the proxied request so it matches what the browser actually sees.
+        changeOrigin: false,
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq, req) => {
+            if (req.headers.host) proxyReq.setHeader("host", req.headers.host);
+          });
+        },
+      },
       "/ws": {
         target: `ws://localhost:${API_PORT}`,
         ws: true,

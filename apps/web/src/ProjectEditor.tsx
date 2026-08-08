@@ -32,15 +32,17 @@ const ValidationPanel = lazy(() => import("./ValidationPanel.js"));
 const PluginManagerDialog = lazy(() => import("./PluginManagerDialog.js"));
 
 import { SettingsModal } from "./SettingsModal.js";
+import type { Session } from "./types.js";
 
 export function ProjectEditor(props: {
   project: ProjectSummary;
-  user: string;
-  userId: string;
+  session: Session;
   onDisplayNameChange: (name: string) => void;
+  onLogout: () => void;
   onBack: () => void;
 }) {
-  const { project, user } = props;
+  const { project, session } = props;
+  const user = session.displayName;
   const {
     project: liveProject,
     doc,
@@ -219,9 +221,10 @@ export function ProjectEditor(props: {
       />
       {showSettings && (
         <SettingsModal
-          session={{ id: props.userId, email: `${user.toLowerCase()}@workspace.local`, displayName: user, isAdmin: true }}
+          session={session}
           onClose={() => setShowSettings(false)}
           onDisplayNameChange={props.onDisplayNameChange}
+          onLogout={props.onLogout}
         />
       )}
 
@@ -271,7 +274,7 @@ export function ProjectEditor(props: {
             onHighlightLinksChange={handleHighlightLinksChange}
             onTableHoverChange={setHoveredTableId}
             projectId={project.id}
-            viewportUserId={props.userId}
+            viewportUserId={session.id}
             exportRef={canvasExportRef}
             canvasCommands={canvasCommands}
             onRunCanvasCommand={runCanvasCommand}
