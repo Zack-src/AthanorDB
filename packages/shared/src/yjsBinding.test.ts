@@ -49,6 +49,7 @@ function sampleProject(): Project {
       },
     ],
     stickyNotes: [{ id: "s1", text: "remember this", position: { x: 5, y: 5 }, size: { width: 100, height: 80 } }],
+    tableGroups: [],
   };
 }
 

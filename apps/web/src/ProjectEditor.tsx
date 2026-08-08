@@ -185,6 +185,7 @@ export function ProjectEditor(props: {
     addZone,
     addStickyNote,
     addEnum,
+    groupSelectedTables,
     setAllDetailLevels,
     activeDetailLevel,
     autoLayout,
@@ -266,6 +267,7 @@ export function ProjectEditor(props: {
             onAddZone={addZone}
             onAddNote={addStickyNote}
             onAddEnum={addEnum}
+            onGroupTables={groupSelectedTables}
             onSetTablesColor={setTablesColor}
             palette={palette}
             fontScale={fontScale}

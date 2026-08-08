@@ -1,7 +1,16 @@
 import { useCallback, useMemo } from "react";
 import * as Y from "yjs";
 import type { Connection } from "@xyflow/react";
-import { getEnumsMap, getRefsMap, getStickyNotesMap, getTablesMap, getZonesMap, type DetailLevel, type Project } from "@athanordb/shared";
+import {
+  getEnumsMap,
+  getRefsMap,
+  getStickyNotesMap,
+  getTableGroupsMap,
+  getTablesMap,
+  getZonesMap,
+  type DetailLevel,
+  type Project,
+} from "@athanordb/shared";
 import { computeAutoLayout } from "../autoLayout.js";
 import type { RefEdgeType } from "../RefEdge.js";
 import type { CanvasNode } from "../types.js";
@@ -66,6 +75,14 @@ export function useProjectMutations(liveProject: Project | null, doc: Y.Doc | nu
       values: [{ id: crypto.randomUUID(), name: "value_1" }],
       position: position ?? { x: 40, y: 40 },
     });
+  };
+
+  /** Figma-style grouping: select 2+ tables, group them — the group is purely a named membership list, no position of its own (see TableGroupNode.tsx). */
+  const groupSelectedTables = (tableIds: string[]) => {
+    if (!doc || tableIds.length < 2) return;
+    const groups = getTableGroupsMap(doc);
+    const id = crypto.randomUUID();
+    groups.set(id, { id, name: `group_${groups.size + 1}`, tableIds });
   };
 
   const setAllDetailLevels = (level: DetailLevel) => {
@@ -220,6 +237,7 @@ export function useProjectMutations(liveProject: Project | null, doc: Y.Doc | nu
     addZone,
     addStickyNote,
     addEnum,
+    groupSelectedTables,
     setAllDetailLevels,
     activeDetailLevel,
     autoLayout,

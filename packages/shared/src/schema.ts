@@ -113,6 +113,19 @@ export interface StickyNote {
   style?: VisualStyle;
 }
 
+/**
+ * A named grouping of existing tables (DBML `TableGroup name { t1 t2 }`) —
+ * unlike a `Zone`, membership is a list of table ids, not a spatial area, so
+ * there's no position/size of its own to store: the canvas derives one from
+ * wherever its member tables currently are.
+ */
+export interface TableGroup {
+  id: Id;
+  name: string;
+  tableIds: Id[];
+  note?: string;
+}
+
 export interface Project {
   id: Id;
   name: string;
@@ -121,6 +134,7 @@ export interface Project {
   enums: EnumDef[];
   zones: Zone[];
   stickyNotes: StickyNote[];
+  tableGroups: TableGroup[];
   /** Custom preset swatch grid for this project's color pickers. Unset -> caller falls back to a built-in default palette. */
   paletteColors?: string[];
 }

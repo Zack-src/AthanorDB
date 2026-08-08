@@ -24,7 +24,7 @@ function ref(
 }
 
 function project(tables: Table[], refs: Ref[] = []): Project {
-  return { id: "p1", name: "Test", tables, refs, enums: [], zones: [], stickyNotes: [] };
+  return { id: "p1", name: "Test", tables, refs, enums: [], zones: [], stickyNotes: [], tableGroups: [] };
 }
 
 test("clean schema produces no issues", () => {

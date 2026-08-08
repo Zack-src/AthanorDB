@@ -172,6 +172,7 @@ test("mergeProjectIntoExisting preserves position/detailLevel/style for tables m
     enums: [],
     zones: [{ id: "z1", label: "Zone", position: { x: 0, y: 0 }, size: { width: 10, height: 10 } }],
     stickyNotes: [{ id: "s1", text: "note", position: { x: 0, y: 0 }, size: { width: 10, height: 10 } }],
+    tableGroups: [],
   };
 
   const incoming = toProject(
@@ -237,6 +238,7 @@ test("mergeProjectIntoExisting drops tables no longer present in incoming, and r
     enums: [],
     zones: [],
     stickyNotes: [],
+    tableGroups: [],
   };
 
   const incoming = toProject(
@@ -291,6 +293,65 @@ Enum status {
   assert.match(dbml, /Enum status \{/);
   assert.match(dbml, /active/);
   assert.match(dbml, /inactive/);
+});
+
+test("table groups round-trip, and reimport preserves the group across a name-matched merge", () => {
+  const source = `
+Table users {
+  id int [pk]
+}
+
+Table posts {
+  id int [pk]
+}
+
+TableGroup content {
+  users
+  posts
+}
+`;
+  const project = toProject(parseDbml(source), "Test");
+  assert.equal(project.tableGroups.length, 1);
+  assert.equal(project.tableGroups[0].name, "content");
+  const users = project.tables.find((t) => t.name === "users")!;
+  const posts = project.tables.find((t) => t.name === "posts")!;
+  assert.deepEqual(new Set(project.tableGroups[0].tableIds), new Set([users.id, posts.id]));
+
+  const dbml = projectToDbml(project);
+  assert.match(dbml, /TableGroup content \{/);
+  assert.match(dbml, /users/);
+  assert.match(dbml, /posts/);
+
+  // Re-parsing fresh text assigns @dbml/core's own positional ids, distinct
+  // from `project`'s — merging back onto the original should keep the same
+  // group id (matched by name) and remap membership onto the *original*
+  // table ids, not the fresh parse's.
+  const reparsed = toProject(parseDbml(dbml), "Test");
+  const merged = mergeProjectIntoExisting(project, reparsed);
+  assert.equal(merged.tableGroups.length, 1);
+  assert.equal(merged.tableGroups[0].id, project.tableGroups[0].id, "group id is stable across a resync");
+  assert.deepEqual(new Set(merged.tableGroups[0].tableIds), new Set([users.id, posts.id]));
+});
+
+test("a table group whose TableGroup block is removed from the source disappears from the merged project", () => {
+  const existing: Project = {
+    id: "p1",
+    name: "Test",
+    tables: [{ id: "t1", name: "users", fields: [{ id: "f1", name: "id", type: "int", pk: true }], indexes: [], position: { x: 0, y: 0 }, detailLevel: "standard" }],
+    refs: [],
+    enums: [],
+    zones: [],
+    stickyNotes: [],
+    tableGroups: [{ id: "g1", name: "core", tableIds: ["t1"] }],
+  };
+  const source = `
+Table users {
+  id int [pk]
+}
+`;
+  const incoming = toProject(parseDbml(source), "Test");
+  const merged = mergeProjectIntoExisting(existing, incoming);
+  assert.equal(merged.tableGroups.length, 0, "no TableGroup block in the source -> no group survives, same as any other DBML-native entity");
 });
 
 test("composite unique index round-trips", () => {
@@ -361,6 +422,7 @@ test("identifiers with special characters get quoted and re-parse cleanly", () =
     enums: [],
     zones: [],
     stickyNotes: [],
+    tableGroups: [],
   };
   const dbml = projectToDbml(project);
   assert.match(dbml, /Table "user profile"/);
@@ -389,6 +451,7 @@ function projectWithVisuals(): Project {
     enums: [],
     zones: [{ id: "z1", label: "Core", position: { x: 0, y: 0 }, size: { width: 400, height: 300 } }],
     stickyNotes: [{ id: "s1", text: "remember to index this", position: { x: 10, y: 10 }, size: { width: 120, height: 80 } }],
+    tableGroups: [],
   };
 }
 
@@ -441,7 +504,7 @@ test("mergeProjectIntoExisting: sidecar-restored position/zones seed a brand-new
   const dbml = projectToDbml(original, { includeVisualMetadata: true });
   const incoming = applyVisualMetadata(toProject(parseDbml(dbml), "Test"), dbml);
 
-  const empty: Project = { id: "p1", name: "Test", tables: [], refs: [], enums: [], zones: [], stickyNotes: [] };
+  const empty: Project = { id: "p1", name: "Test", tables: [], refs: [], enums: [], zones: [], stickyNotes: [], tableGroups: [] };
   const seeded = mergeProjectIntoExisting(empty, incoming);
   const seededUsers = seeded.tables.find((t) => t.name === "users")!;
   assert.deepEqual(seededUsers.position, original.tables[0].position, "brand-new project picks up the sidecar position");

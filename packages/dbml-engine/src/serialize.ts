@@ -153,6 +153,17 @@ export function projectToDbml(project: Project, options?: { includeVisualMetadat
     parts.push(lines.join("\n"));
   }
 
+  for (const group of project.tableGroups) {
+    const memberNames = group.tableIds
+      .map((tid) => project.tables.find((t) => t.id === tid))
+      .filter((t): t is Table => Boolean(t))
+      .map((t) => tableName(t));
+    // An empty (or fully-orphaned, every member table deleted) group has
+    // nothing meaningful to declare — @dbml/core also rejects `TableGroup g {}`.
+    if (memberNames.length === 0) continue;
+    parts.push([`TableGroup ${quoteIdent(group.name)} {`, ...memberNames.map((n) => `  ${n}`), `}`].join("\n"));
+  }
+
   for (const ref of project.refs) {
     const from = fieldNameById(project.tables, ref.from.tableId, ref.from.fieldId);
     const to = fieldNameById(project.tables, ref.to.tableId, ref.to.fieldId);

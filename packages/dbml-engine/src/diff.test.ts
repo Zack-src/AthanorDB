@@ -32,6 +32,7 @@ function baseProject(): Project {
     enums: [],
     zones: [],
     stickyNotes: [],
+    tableGroups: [],
   };
 }
 

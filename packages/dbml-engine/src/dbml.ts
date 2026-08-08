@@ -177,6 +177,17 @@ export function toProject(database: any, projectName = "Untitled", source?: stri
     position: { x: (i % 6) * 320, y: (enumGridStartRow + Math.floor(i / 6)) * 400 },
   }));
 
+  // @dbml/core's own table-group tables carry the same declaration-order
+  // `.id` the `tables` map above already keyed the AthanorDB `Table.id` on
+  // (`String(table.id ?? table.name)`) — resolving through that instead of
+  // re-deriving it keeps a group's member ids consistent with the tables array.
+  const tableGroups = (schema?.tableGroups ?? []).map((g: any) => ({
+    id: String(g.id ?? g.name),
+    name: g.name,
+    tableIds: (g.tables ?? []).map((t: any) => String(t.id ?? t.name)),
+    note: g.note || undefined,
+  }));
+
   return {
     id: crypto.randomUUID(),
     name: projectName,
@@ -185,6 +196,7 @@ export function toProject(database: any, projectName = "Untitled", source?: stri
     enums,
     zones: [],
     stickyNotes: [],
+    tableGroups,
   };
 }
 
@@ -327,6 +339,18 @@ export function mergeProjectIntoExisting(existing: Project, incoming: Project): 
     };
   });
 
+  // Same name-matched treatment as enums, one step simpler: a group's only
+  // content is its member table ids, which just need remapping through the
+  // same `tableIdRemap` built for `tables` above (a table referenced by a
+  // group that no longer exists — renamed out from under it or deleted — is
+  // dropped from the membership rather than left dangling).
+  const existingGroupsByName = new Map(existing.tableGroups.map((g) => [g.name, g]));
+  const tableGroups = incoming.tableGroups.map((group) => ({
+    ...group,
+    id: existingGroupsByName.get(group.name)?.id ?? crypto.randomUUID(),
+    tableIds: group.tableIds.map((tid) => tableIdRemap.get(tid)).filter((tid): tid is string => Boolean(tid)),
+  }));
+
   return {
     id: existing.id,
     name: existing.name,
@@ -335,5 +359,6 @@ export function mergeProjectIntoExisting(existing: Project, incoming: Project): 
     enums,
     zones: existing.zones.length > 0 ? existing.zones : incoming.zones,
     stickyNotes: existing.stickyNotes.length > 0 ? existing.stickyNotes : incoming.stickyNotes,
+    tableGroups,
   };
 }

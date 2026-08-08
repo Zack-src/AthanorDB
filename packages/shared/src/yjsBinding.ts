@@ -1,5 +1,5 @@
 import * as Y from "yjs";
-import type { EnumDef, Id, Project, Ref, StickyNote, Table, Zone } from "./schema.js";
+import type { EnumDef, Id, Project, Ref, StickyNote, Table, TableGroup, Zone } from "./schema.js";
 
 /**
  * Bridges the plain-object `Project` shape to a Y.Doc so the server and web
@@ -14,6 +14,7 @@ export const REFS_KEY = "refs";
 export const ENUMS_KEY = "enums";
 export const ZONES_KEY = "zones";
 export const STICKY_NOTES_KEY = "stickyNotes";
+export const TABLE_GROUPS_KEY = "tableGroups";
 
 export function getMetaMap(doc: Y.Doc): Y.Map<unknown> {
   return doc.getMap(META_KEY);
@@ -37,6 +38,10 @@ export function getZonesMap(doc: Y.Doc): Y.Map<Zone> {
 
 export function getStickyNotesMap(doc: Y.Doc): Y.Map<StickyNote> {
   return doc.getMap(STICKY_NOTES_KEY);
+}
+
+export function getTableGroupsMap(doc: Y.Doc): Y.Map<TableGroup> {
+  return doc.getMap(TABLE_GROUPS_KEY);
 }
 
 // Yjs never dedupes a `.set()`/`.delete()` by value equality — it always
@@ -96,6 +101,10 @@ export function writeProjectToDoc(doc: Y.Doc, project: Project): void {
       getStickyNotesMap(doc),
       project.stickyNotes.map((s) => [s.id, s]),
     );
+    replaceMapContents(
+      getTableGroupsMap(doc),
+      project.tableGroups.map((g) => [g.id, g]),
+    );
   });
 }
 
@@ -111,5 +120,6 @@ export function readProjectFromDoc(doc: Y.Doc, fallbackId: string, fallbackName 
     enums: Array.from(getEnumsMap(doc).values()),
     zones: Array.from(getZonesMap(doc).values()),
     stickyNotes: Array.from(getStickyNotesMap(doc).values()),
+    tableGroups: Array.from(getTableGroupsMap(doc).values()),
   };
 }

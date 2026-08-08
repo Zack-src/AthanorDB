@@ -86,7 +86,7 @@ function ExportDialog(props: {
     setBusy(true);
     setError(null);
     target
-      .run(props.project ?? ({ id: props.projectId, name: props.projectName, tables: [], refs: [], enums: [], zones: [], stickyNotes: [] } as Project))
+      .run(props.project ?? ({ id: props.projectId, name: props.projectName, tables: [], refs: [], enums: [], zones: [], stickyNotes: [], tableGroups: [] } as Project))
       .then((value) => {
         if (!cancelled) setResult(value as ExportResult);
       })

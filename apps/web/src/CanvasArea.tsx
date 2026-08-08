@@ -28,8 +28,9 @@ import { RefEdge, type RefEdgeType } from "./RefEdge.js";
 import { ZoneNode } from "./ZoneNode.js";
 import { StickyNoteNode } from "./StickyNoteNode.js";
 import { EnumNode } from "./EnumNode.js";
+import { TableGroupNode } from "./TableGroupNode.js";
 import { CursorNode, type CursorNodeType } from "./CursorNode.js";
-import { ChevronRightIcon, FrameIcon, LinkIcon, MinimapIcon, NoteIcon, PuzzleIcon, TableIcon, TagIcon } from "./Icons.js";
+import { ChevronRightIcon, FrameIcon, LayersIcon, LinkIcon, MinimapIcon, NoteIcon, PuzzleIcon, TableIcon, TagIcon } from "./Icons.js";
 import { FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadShowMinimap, loadViewport, saveShowMinimap, viewportKey } from "./localPrefs.js";
 import { CONTEXT_MENU_CLASS, CONTEXT_MENU_ITEM_CLASS } from "./ui/contextMenuStyles.js";
 import {
@@ -44,7 +45,14 @@ import { SWATCH_CELL_CLASS } from "./ColorSwatchPicker.js";
 import type { CanvasCommandContribution, ResolvedContribution } from "./plugins/types.js";
 import type { AllNodes, CanvasExportHandle, CanvasNode } from "./types.js";
 
-const nodeTypes = { table: TableNode, zone: ZoneNode, sticky: StickyNoteNode, enum: EnumNode, cursor: CursorNode };
+const nodeTypes = {
+  table: TableNode,
+  zone: ZoneNode,
+  sticky: StickyNoteNode,
+  enum: EnumNode,
+  tablegroup: TableGroupNode,
+  cursor: CursorNode,
+};
 const edgeTypes = { ref: RefEdge };
 
 /**
@@ -60,12 +68,22 @@ interface CanvasContextMenuState {
   flowPosition: { x: number; y: number };
 }
 
-/** Floating swatch row shown above the canvas once 2+ tables are selected — picking a color applies it to every selected table's header at once. */
-function SelectionColorToolbar(props: { count: number; palette: string[]; onPick: (color: string) => void }) {
+/** Floating swatch row shown above the canvas once 2+ tables are selected — picking a color applies it to every selected table's header at once, "Group" bundles them into a named TableGroup. */
+function SelectionColorToolbar(props: { count: number; palette: string[]; onPick: (color: string) => void; onGroup: () => void }) {
   return (
     <Panel position="top-center" className="nodrag nopan">
       <div className="flex flex-col items-start gap-1.5 rounded-md border border-border bg-surface-raised px-2.5 py-2 shadow-lg">
-        <span className="whitespace-nowrap text-xs text-text-muted">{props.count} tables selected</span>
+        <div className="flex w-full items-center justify-between gap-3">
+          <span className="whitespace-nowrap text-xs text-text-muted">{props.count} tables selected</span>
+          <button
+            type="button"
+            className="flex items-center gap-1 whitespace-nowrap rounded-md border border-border-strong/80 px-1.5 py-0.5 text-[11px] font-semibold text-text-secondary hover:border-primary/60 hover:text-text"
+            onClick={props.onGroup}
+            data-tooltip="Group into a TableGroup"
+          >
+            <LayersIcon size={12} /> Group
+          </button>
+        </div>
         <div className="grid grid-cols-10 gap-1.5">
           {props.palette.map((c) => (
             <button
@@ -382,6 +400,8 @@ export function CanvasArea(props: {
   onAddEnum: (position: { x: number; y: number }) => void;
   /** Applies a header color to every currently-selected table at once — shown by the selection toolbar once 2+ tables are selected. */
   onSetTablesColor: (tableIds: string[], color: string) => void;
+  /** Bundles the currently-selected tables into a named TableGroup — same selection toolbar. */
+  onGroupTables: (tableIds: string[]) => void;
   palette: string[];
   fontScale: number;
   onAdjustFontScale: (delta: number) => void;
@@ -674,6 +694,7 @@ export function CanvasArea(props: {
             count={selectedTableIds.length}
             palette={props.palette}
             onPick={(color) => props.onSetTablesColor(selectedTableIds, color)}
+            onGroup={() => props.onGroupTables(selectedTableIds)}
           />
         )}
       </ReactFlow>
