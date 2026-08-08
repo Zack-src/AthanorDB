@@ -61,9 +61,12 @@ export interface ProjectTeamGrant {
   permission: PermissionLevel;
 }
 
-export type SqlDialect = "postgres" | "mysql" | "mssql";
+/**
+ * Canvas snapshot formats. Text formats (DBML, SQL dialects, anything a plugin
+ * adds) are no longer an enum here — they come from exporter contributions at
+ * runtime; see `plugins/types.ts`.
+ */
 export type ImageFormat = "png" | "svg" | "pdf";
-export type ExportFormat = "dbml" | SqlDialect | ImageFormat;
 
 export interface CanvasImageCapture {
   dataUrl: string;

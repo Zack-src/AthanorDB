@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type MutableRefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   ReactFlow,
   useReactFlow,
+  useStore,
   Background,
-  Controls,
-  ControlButton,
   MiniMap,
   Panel,
   PanOnScrollMode,
@@ -20,7 +28,7 @@ import { RefEdge, type RefEdgeType } from "./RefEdge.js";
 import { ZoneNode } from "./ZoneNode.js";
 import { StickyNoteNode } from "./StickyNoteNode.js";
 import { CursorNode, type CursorNodeType } from "./CursorNode.js";
-import { ChevronRightIcon, FrameIcon, LinkIcon, MinimapIcon, NoteIcon, TableIcon } from "./Icons.js";
+import { ChevronRightIcon, FrameIcon, LinkIcon, MinimapIcon, NoteIcon, PuzzleIcon, TableIcon } from "./Icons.js";
 import { FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadShowMinimap, loadViewport, saveShowMinimap, viewportKey } from "./localPrefs.js";
 import { CONTEXT_MENU_CLASS, CONTEXT_MENU_ITEM_CLASS } from "./ui/contextMenuStyles.js";
 import {
@@ -29,8 +37,10 @@ import {
   CANVAS_TOOLBAR_ICON_BTN_CLASS,
   CANVAS_TOOLBAR_SEGMENT_ACTIVE_CLASS,
   CANVAS_TOOLBAR_SEGMENT_CLASS,
+  CANVAS_TOOLBAR_TOGGLE_ACTIVE_CLASS,
 } from "./ui/canvasToolbarStyles.js";
 import { SWATCH_CELL_CLASS } from "./ColorSwatchPicker.js";
+import type { CanvasCommandContribution, ResolvedContribution } from "./plugins/types.js";
 import type { AllNodes, CanvasExportHandle, CanvasNode } from "./types.js";
 
 const nodeTypes = { table: TableNode, zone: ZoneNode, sticky: StickyNoteNode, cursor: CursorNode };
@@ -107,8 +117,19 @@ const DETAIL_LEVEL_HINT: Record<DetailLevel, string> = {
   full: "Show all fields",
 };
 
-/** Detail-level toolbar control — a single button opening a popover list instead of three always-visible segments, so the floating toolbar stays compact. */
-function DetailLevelDropdown(props: { value: DetailLevel | null; onChange: (level: DetailLevel) => void }) {
+/**
+ * Popover behaviour shared by every dropdown in the floating toolbar (detail
+ * level, zoom, plugins). The menu is portalled to `document.body` and anchored
+ * *above* its trigger, since the toolbar sits at the bottom of the canvas.
+ */
+function ToolbarMenu(props: {
+  /** Classes for the trigger button itself — it must be a real box, since the menu is anchored off its rect. */
+  triggerClassName: (open: boolean) => string;
+  triggerContent: ReactNode;
+  tooltip: string;
+  minWidth?: number;
+  children: (close: () => void) => ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ x: number; bottom: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -135,7 +156,11 @@ function DetailLevelDropdown(props: { value: DetailLevel | null; onChange: (leve
   const toggle = () => {
     if (!open && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setMenuPos({ x: rect.left, bottom: window.innerHeight - rect.top + 6 });
+      const width = props.minWidth ?? 180;
+      setMenuPos({
+        x: Math.min(Math.max(8, rect.left), window.innerWidth - width - 8),
+        bottom: window.innerHeight - rect.top + 8,
+      });
     }
     setOpen((v) => !v);
   };
@@ -145,40 +170,195 @@ function DetailLevelDropdown(props: { value: DetailLevel | null; onChange: (leve
       <button
         ref={triggerRef}
         type="button"
-        className={`${CANVAS_TOOLBAR_SEGMENT_CLASS} flex items-center gap-1 ${open ? CANVAS_TOOLBAR_SEGMENT_ACTIVE_CLASS : ""}`}
+        className={props.triggerClassName(open)}
         onClick={(e) => {
           e.stopPropagation();
           toggle();
         }}
-        data-tooltip="Detail level"
+        data-tooltip={props.tooltip}
         data-tooltip-pos="bottom"
       >
-        {props.value ? DETAIL_LEVEL_LABEL[props.value] : "Detail"}
-        <ChevronRightIcon size={11} className="-rotate-90" />
+        {props.triggerContent}
       </button>
       {open &&
         menuPos &&
         createPortal(
-          <div ref={menuRef} className={CONTEXT_MENU_CLASS} style={{ left: menuPos.x, bottom: menuPos.bottom }}>
-            {(["compact", "standard", "full"] as const).map((level) => (
-              <button
-                key={level}
-                type="button"
-                className={`${CONTEXT_MENU_ITEM_CLASS} justify-between ${level === props.value ? "text-text" : ""}`}
-                onClick={() => {
-                  props.onChange(level);
-                  setOpen(false);
-                }}
-                data-tooltip={DETAIL_LEVEL_HINT[level]}
-              >
-                {DETAIL_LEVEL_LABEL[level]}
-                {level === props.value && <span className="text-primary">✓</span>}
-              </button>
-            ))}
+          <div
+            ref={menuRef}
+            className={CONTEXT_MENU_CLASS}
+            style={{ left: menuPos.x, bottom: menuPos.bottom, minWidth: props.minWidth ?? 180 }}
+          >
+            {props.children(() => setOpen(false))}
           </div>,
           document.body,
         )}
     </>
+  );
+}
+
+/** Detail-level toolbar control — a single button opening a popover list instead of three always-visible segments, so the floating toolbar stays compact. */
+function DetailLevelDropdown(props: { value: DetailLevel | null; onChange: (level: DetailLevel) => void }) {
+  return (
+    <ToolbarMenu
+      tooltip="Detail level"
+      triggerClassName={(open) => `${CANVAS_TOOLBAR_SEGMENT_CLASS} gap-1 ${open ? CANVAS_TOOLBAR_SEGMENT_ACTIVE_CLASS : ""}`}
+      triggerContent={
+        <>
+          {props.value ? DETAIL_LEVEL_LABEL[props.value] : "Detail"}
+          <ChevronRightIcon size={11} className="-rotate-90" />
+        </>
+      }
+    >
+      {(close) =>
+        (["compact", "standard", "full"] as const).map((level) => (
+          <button
+            key={level}
+            type="button"
+            className={`${CONTEXT_MENU_ITEM_CLASS} justify-between ${level === props.value ? "text-text" : ""}`}
+            onClick={() => {
+              props.onChange(level);
+              close();
+            }}
+            data-tooltip={DETAIL_LEVEL_HINT[level]}
+          >
+            {DETAIL_LEVEL_LABEL[level]}
+            {level === props.value && <span className="text-primary">✓</span>}
+          </button>
+        ))
+      }
+    </ToolbarMenu>
+  );
+}
+
+const ZOOM_PRESETS = [0.5, 1, 2] as const;
+
+/** Zoom cluster: −, a percentage button opening fit/preset choices, +. Mirrors Figma's bottom-right zoom control. */
+function ZoomControls(props: { selectedIds: string[] }) {
+  const { zoomIn, zoomOut, zoomTo, fitView } = useReactFlow();
+  const zoom = useStore((state) => state.transform[2]);
+
+  return (
+    <>
+      <button
+        type="button"
+        className={CANVAS_TOOLBAR_ICON_BTN_CLASS}
+        onClick={() => zoomOut({ duration: 120 })}
+        data-tooltip="Zoom out"
+        data-tooltip-pos="bottom"
+        aria-label="Zoom out"
+      >
+        <span className="text-[15px] leading-none">−</span>
+      </button>
+      <ToolbarMenu
+        tooltip="Zoom"
+        minWidth={170}
+        triggerClassName={(open) =>
+          `${CANVAS_TOOLBAR_SEGMENT_CLASS} min-w-[52px] justify-center ${open ? CANVAS_TOOLBAR_SEGMENT_ACTIVE_CLASS : ""}`
+        }
+        triggerContent={`${Math.round(zoom * 100)}%`}
+      >
+        {(close) => (
+          <>
+            <button
+              type="button"
+              className={`${CONTEXT_MENU_ITEM_CLASS} justify-between`}
+              onClick={() => {
+                fitView({ padding: 0.15, duration: 200 });
+                close();
+              }}
+            >
+              Zoom to fit <span className="text-text-muted">Shift+1</span>
+            </button>
+            <button
+              type="button"
+              className={`${CONTEXT_MENU_ITEM_CLASS} justify-between disabled:opacity-40`}
+              disabled={props.selectedIds.length === 0}
+              onClick={() => {
+                fitView({ padding: 0.3, duration: 200, nodes: props.selectedIds.map((id) => ({ id })) });
+                close();
+              }}
+            >
+              Zoom to selection
+            </button>
+            {ZOOM_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className={CONTEXT_MENU_ITEM_CLASS}
+                onClick={() => {
+                  zoomTo(preset, { duration: 200 });
+                  close();
+                }}
+              >
+                {preset * 100}%
+              </button>
+            ))}
+          </>
+        )}
+      </ToolbarMenu>
+      <button
+        type="button"
+        className={CANVAS_TOOLBAR_ICON_BTN_CLASS}
+        onClick={() => zoomIn({ duration: 120 })}
+        data-tooltip="Zoom in"
+        data-tooltip-pos="bottom"
+        aria-label="Zoom in"
+      >
+        <span className="text-[15px] leading-none">+</span>
+      </button>
+    </>
+  );
+}
+
+/** Plugin menu — every canvas command contributed by a plugin, plus a way into the manager. */
+function PluginMenu(props: {
+  commands: ResolvedContribution<CanvasCommandContribution>[];
+  onRun: (command: ResolvedContribution<CanvasCommandContribution>) => void;
+  onOpenPlugins: () => void;
+}) {
+  return (
+    <ToolbarMenu
+      tooltip="Plugin commands"
+      minWidth={240}
+      triggerClassName={(open) => `${CANVAS_TOOLBAR_ICON_BTN_CLASS} ${open ? CANVAS_TOOLBAR_SEGMENT_ACTIVE_CLASS : ""}`}
+      triggerContent={<PuzzleIcon size={14} />}
+    >
+      {(close) => (
+        <>
+          {props.commands.length === 0 && (
+            <span className="block px-2.5 py-1.5 text-[12px] text-text-muted">No canvas command installed</span>
+          )}
+          {props.commands.map((command) => (
+            <button
+              key={command.key}
+              type="button"
+              className={`${CONTEXT_MENU_ITEM_CLASS} justify-between`}
+              onClick={() => {
+                props.onRun(command);
+                close();
+              }}
+              data-tooltip={command.contribution.description}
+            >
+              {command.contribution.label}
+              <span className="ml-2 shrink-0 text-[10px] text-text-muted">
+                {command.contribution.shortcut ?? (command.source === "user" ? command.plugin.name : "")}
+              </span>
+            </button>
+          ))}
+          <span className="my-1 block h-px bg-border" />
+          <button
+            type="button"
+            className={CONTEXT_MENU_ITEM_CLASS}
+            onClick={() => {
+              props.onOpenPlugins();
+              close();
+            }}
+          >
+            Manage plugins…
+          </button>
+        </>
+      )}
+    </ToolbarMenu>
   );
 }
 
@@ -209,6 +389,12 @@ export function CanvasArea(props: {
   /** Session's stable user id — only used to namespace the saved-viewport localStorage key, not an identity/authorship field. */
   viewportUserId: string;
   exportRef: MutableRefObject<CanvasExportHandle | null>;
+  /** Canvas commands contributed by plugins, shown in the toolbar's plugin menu. */
+  canvasCommands: ResolvedContribution<CanvasCommandContribution>[];
+  onRunCanvasCommand: (command: ResolvedContribution<CanvasCommandContribution>) => void;
+  onOpenPlugins: () => void;
+  /** Transient feedback from the last plugin command, shown above the toolbar. */
+  statusMessage: string | null;
 }) {
   const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow();
   const [menu, setMenu] = useState<CanvasContextMenuState | null>(null);
@@ -221,33 +407,40 @@ export function CanvasArea(props: {
   // Exposed imperatively (not via props/state) because the Export dialog
   // that triggers this lives outside the ReactFlowProvider this component is
   // rendered inside — it has no other way to reach `fitView`/`getViewport`.
-  // Cheap to reassign every render: pure closure construction, no DOM/side
-  // effects until actually invoked.
-  props.exportRef.current = {
-    capture: async (format) => {
-      const paneEl = document.querySelector(".react-flow__pane") as HTMLElement | null;
-      if (!paneEl) throw new Error("Canvas is not ready yet");
-      const prevViewport = getViewport();
-      // Fit the *entire* diagram into the current pane size first — reuses
-      // React Flow's own (already correct) fit logic instead of hand-rolling
-      // bounds/zoom math, and means the export isn't just whatever happens
-      // to be on-screen from the user's last pan/zoom.
-      fitView({ padding: 0.15, duration: 0 });
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const width = paneEl.clientWidth;
-      const height = paneEl.clientHeight;
-      try {
-        // html-to-image is only needed for this one action — dynamic import
-        // keeps it out of the bundle everyone loads just to view a diagram.
-        const { toPng, toSvg } = await import("html-to-image");
-        const options = { backgroundColor: "#17181b", width, height, pixelRatio: format === "png" ? 2 : 1 };
-        const dataUrl = format === "png" ? await toPng(paneEl, options) : await toSvg(paneEl, options);
-        return { dataUrl, width, height };
-      } finally {
-        setViewport(prevViewport, { duration: 0 });
-      }
-    },
-  };
+  // Published from an effect rather than during render: writing to someone
+  // else's ref mid-render is exactly the kind of side effect React's rules
+  // forbid, and the handle is only ever needed later, on a user action.
+  const { exportRef } = props;
+  useEffect(() => {
+    exportRef.current = {
+      capture: async (format) => {
+        const paneEl = document.querySelector(".react-flow__pane") as HTMLElement | null;
+        if (!paneEl) throw new Error("Canvas is not ready yet");
+        const prevViewport = getViewport();
+        // Fit the *entire* diagram into the current pane size first — reuses
+        // React Flow's own (already correct) fit logic instead of hand-rolling
+        // bounds/zoom math, and means the export isn't just whatever happens
+        // to be on-screen from the user's last pan/zoom.
+        fitView({ padding: 0.15, duration: 0 });
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const width = paneEl.clientWidth;
+        const height = paneEl.clientHeight;
+        try {
+          // html-to-image is only needed for this one action — dynamic import
+          // keeps it out of the bundle everyone loads just to view a diagram.
+          const { toPng, toSvg } = await import("html-to-image");
+          const options = { backgroundColor: "#17181b", width, height, pixelRatio: format === "png" ? 2 : 1 };
+          const dataUrl = format === "png" ? await toPng(paneEl, options) : await toSvg(paneEl, options);
+          return { dataUrl, width, height };
+        } finally {
+          setViewport(prevViewport, { duration: 0 });
+        }
+      },
+    };
+    return () => {
+      exportRef.current = null;
+    };
+  }, [exportRef, fitView, getViewport, setViewport]);
 
   const handleMouseMove = (e: ReactMouseEvent) => {
     props.awareness?.setLocalStateField("cursor", screenToFlowPosition({ x: e.clientX, y: e.clientY }));
@@ -266,17 +459,18 @@ export function CanvasArea(props: {
     });
   }, []);
 
+  const { onTableHoverChange } = props;
   const handleNodeMouseEnter = useCallback(
     (_e: ReactMouseEvent, node: AllNodes) => {
-      if (node.type === "table") props.onTableHoverChange(node.id);
+      if (node.type === "table") onTableHoverChange(node.id);
     },
-    [props.onTableHoverChange],
+    [onTableHoverChange],
   );
   const handleNodeMouseLeave = useCallback(
     (_e: ReactMouseEvent, node: AllNodes) => {
-      if (node.type === "table") props.onTableHoverChange(null);
+      if (node.type === "table") onTableHoverChange(null);
     },
-    [props.onTableHoverChange],
+    [onTableHoverChange],
   );
 
   const handlePaneContextMenu = useCallback(
@@ -304,20 +498,18 @@ export function CanvasArea(props: {
     };
   }, [menu, closeMenu]);
 
-  // React Flow's built-in Controls buttons (fit view, toggle interactivity)
-  // set their own native `title`, which reads inconsistently with the rest
-  // of the app's themed tooltips — relabel them to `data-tooltip` so
-  // <GlobalTooltip> picks them up instead. Runs once after mount; these
-  // buttons don't change identity afterwards.
-  useEffect(() => {
-    const buttons = document.querySelectorAll<HTMLElement>(".react-flow__controls-button[title]");
-    for (const btn of buttons) {
-      const title = btn.getAttribute("title");
-      if (!title) continue;
-      btn.removeAttribute("title");
-      btn.setAttribute("data-tooltip", title);
-    }
-  }, []);
+  /**
+   * Where the toolbar's insert buttons drop a new node: the centre of the
+   * visible pane, so it lands where the user is looking rather than at a fixed
+   * flow coordinate they may have panned away from.
+   */
+  const paneCenter = useCallback(() => {
+    const pane = document.querySelector(".react-flow__pane") as HTMLElement | null;
+    const rect = pane?.getBoundingClientRect();
+    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const y = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+    return screenToFlowPosition({ x, y });
+  }, [screenToFlowPosition]);
 
   const nodes: AllNodes[] = [...props.nodes, ...props.cursorNodes];
   const selectedTableIds = props.nodes.filter((n) => n.type === "table" && n.selected).map((n) => n.id);
@@ -359,50 +551,105 @@ export function CanvasArea(props: {
         minZoom={0.05}
       >
         <Background color="#33353c" gap={20} />
-        <Controls showZoom={false} orientation="horizontal" position="bottom-left" className={CANVAS_TOOLBAR_CLASS}>
-          <DetailLevelDropdown value={props.activeDetailLevel} onChange={props.onSetDetailLevel} />
-          <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
-          <div className="flex items-center gap-0.5 px-0.5" data-tooltip="Canvas text size" data-tooltip-pos="bottom">
+        <Panel position="bottom-center" className="nodrag nopan pointer-events-none !bottom-4 flex flex-col items-center gap-2">
+          {props.statusMessage && (
+            <span className="pointer-events-auto rounded-full border border-border bg-surface-raised/95 px-3 py-1 text-[11.5px] text-text-secondary shadow-lg backdrop-blur-md">
+              {props.statusMessage}
+            </span>
+          )}
+          <div className={CANVAS_TOOLBAR_CLASS}>
             <button
               type="button"
-              className={`${CANVAS_TOOLBAR_SEGMENT_CLASS} !px-1.5 disabled:pointer-events-none disabled:opacity-40`}
-              onClick={() => props.onAdjustFontScale(-FONT_SCALE_STEP)}
-              disabled={props.fontScale <= FONT_SCALE_MIN}
-              data-tooltip="Decrease canvas text size"
+              className={CANVAS_TOOLBAR_ICON_BTN_CLASS}
+              onClick={() => props.onAddTable(paneCenter())}
+              data-tooltip="Add table"
+              data-tooltip-pos="bottom"
+              aria-label="Add table"
             >
-              <span className="text-[11px] font-bold leading-none">A</span>
+              <TableIcon size={15} />
             </button>
-            <span className="min-w-[32px] text-center text-[11.5px] text-text-muted">{Math.round(props.fontScale * 100)}%</span>
             <button
               type="button"
-              className={`${CANVAS_TOOLBAR_SEGMENT_CLASS} !px-1.5 disabled:pointer-events-none disabled:opacity-40`}
-              onClick={() => props.onAdjustFontScale(FONT_SCALE_STEP)}
-              disabled={props.fontScale >= FONT_SCALE_MAX}
-              data-tooltip="Increase canvas text size"
+              className={CANVAS_TOOLBAR_ICON_BTN_CLASS}
+              onClick={() => props.onAddZone(paneCenter())}
+              data-tooltip="Add zone"
+              data-tooltip-pos="bottom"
+              aria-label="Add zone"
             >
-              <span className="text-sm font-bold leading-none">A</span>
+              <FrameIcon size={15} />
             </button>
+            <button
+              type="button"
+              className={CANVAS_TOOLBAR_ICON_BTN_CLASS}
+              onClick={() => props.onAddNote(paneCenter())}
+              data-tooltip="Add sticky note"
+              data-tooltip-pos="bottom"
+              aria-label="Add sticky note"
+            >
+              <NoteIcon size={15} />
+            </button>
+
+            <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
+            <DetailLevelDropdown value={props.activeDetailLevel} onChange={props.onSetDetailLevel} />
+            <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
+            <div className="flex items-center" data-tooltip="Canvas text size" data-tooltip-pos="bottom">
+              <button
+                type="button"
+                className={`${CANVAS_TOOLBAR_SEGMENT_CLASS} !px-1.5 hover:text-text`}
+                onClick={() => props.onAdjustFontScale(-FONT_SCALE_STEP)}
+                disabled={props.fontScale <= FONT_SCALE_MIN}
+                data-tooltip="Réduire la taille du texte"
+                data-tooltip-pos="bottom"
+              >
+                <span className="text-[11px] font-bold leading-none">A⁻</span>
+              </button>
+              <span className="min-w-[34px] text-center text-[11.5px] font-mono font-medium text-text-muted">{Math.round(props.fontScale * 100)}%</span>
+              <button
+                type="button"
+                className={`${CANVAS_TOOLBAR_SEGMENT_CLASS} !px-1.5 hover:text-text`}
+                onClick={() => props.onAdjustFontScale(FONT_SCALE_STEP)}
+                disabled={props.fontScale >= FONT_SCALE_MAX}
+                data-tooltip="Augmenter la taille du texte"
+                data-tooltip-pos="bottom"
+              >
+                <span className="text-[13px] font-bold leading-none">A⁺</span>
+              </button>
+
+            </div>
+
+            <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
+            <button
+              type="button"
+              className={`${CANVAS_TOOLBAR_ICON_BTN_CLASS} ${props.highlightLinks ? CANVAS_TOOLBAR_TOGGLE_ACTIVE_CLASS : ""}`}
+              onClick={() => props.onHighlightLinksChange(!props.highlightLinks)}
+              data-tooltip={props.highlightLinks ? "Hide link and cardinality highlighting" : "Highlight links and cardinalities"}
+              data-tooltip-pos="bottom"
+              aria-label="Toggle link highlight"
+            >
+              <LinkIcon size={14} />
+            </button>
+            <button
+              type="button"
+              className={`${CANVAS_TOOLBAR_ICON_BTN_CLASS} ${showMinimap ? CANVAS_TOOLBAR_TOGGLE_ACTIVE_CLASS : ""}`}
+              onClick={toggleMinimap}
+              data-tooltip={showMinimap ? "Hide minimap" : "Show minimap"}
+              data-tooltip-pos="bottom"
+              aria-label="Toggle minimap"
+            >
+              <MinimapIcon size={14} />
+            </button>
+
+            <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
+            <ZoomControls selectedIds={selectedTableIds} />
+
+            <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
+            <PluginMenu
+              commands={props.canvasCommands}
+              onRun={props.onRunCanvasCommand}
+              onOpenPlugins={props.onOpenPlugins}
+            />
           </div>
-          <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
-          <ControlButton
-            className={CANVAS_TOOLBAR_ICON_BTN_CLASS}
-            onClick={() => props.onHighlightLinksChange(!props.highlightLinks)}
-            data-tooltip={props.highlightLinks ? "Masquer la mise en évidence des liens et cardinalités" : "Mettre en évidence les liens et cardinalités"}
-            aria-label="Toggle link highlight"
-            style={{ color: props.highlightLinks ? "#818cf8" : undefined, background: props.highlightLinks ? "rgba(99, 102, 241, 0.25)" : undefined }}
-          >
-            <LinkIcon size={14} />
-          </ControlButton>
-          <ControlButton
-            className={CANVAS_TOOLBAR_ICON_BTN_CLASS}
-            onClick={toggleMinimap}
-            data-tooltip={showMinimap ? "Masquer la minimap" : "Afficher la minimap"}
-            aria-label="Toggle minimap"
-            style={{ color: showMinimap ? "#818cf8" : undefined, background: showMinimap ? "rgba(99, 102, 241, 0.25)" : undefined }}
-          >
-            <MinimapIcon size={14} />
-          </ControlButton>
-        </Controls>
+        </Panel>
         {showMinimap && (
           <MiniMap pannable zoomable bgColor="#1f2024" nodeColor="#4b4d8a" maskColor="rgba(23,24,27,0.75)" />
         )}

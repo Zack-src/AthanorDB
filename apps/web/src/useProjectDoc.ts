@@ -11,13 +11,14 @@ import {
   getZonesMap,
   readProjectFromDoc,
 } from "@athanordb/shared";
-import { connectProject } from "./yjsClient.js";
+import { connectProject, type ConnectionStatus } from "./yjsClient.js";
 
 export interface ProjectDocHandle {
   project: Project | null;
   doc: Y.Doc | null;
   undoManager: Y.UndoManager | null;
   awareness: Awareness | null;
+  connection: ConnectionStatus;
 }
 
 /** Connects to the project's Yjs room over WS and keeps `project` in sync with live doc state. */
@@ -26,6 +27,7 @@ export function useProjectDoc(projectId: string, fallbackName: string, user: str
   const [doc, setDoc] = useState<Y.Doc | null>(null);
   const [undoManager, setUndoManager] = useState<Y.UndoManager | null>(null);
   const [awareness, setAwareness] = useState<Awareness | null>(null);
+  const [connection, setConnection] = useState<ConnectionStatus>("connecting");
 
   useEffect(() => {
     // Reset while (re)connecting to a different project/user — deliberate,
@@ -35,8 +37,9 @@ export function useProjectDoc(projectId: string, fallbackName: string, user: str
     setDoc(null);
     setUndoManager(null);
     setAwareness(null);
+    setConnection("connecting");
 
-    const conn = connectProject(projectId, user);
+    const conn = connectProject(projectId, user, setConnection);
     const refresh = () => setProject(readProjectFromDoc(conn.doc, projectId, fallbackName));
     const editableMaps = [
       getTablesMap(conn.doc),
@@ -51,8 +54,8 @@ export function useProjectDoc(projectId: string, fallbackName: string, user: str
     refresh();
 
     // Only tracks local edits (default trackedOrigins is `{null}`); remote
-    // updates arrive with the WebSocket as origin, so each user's undo stack
-    // stays their own instead of undoing peers' changes.
+    // updates arrive tagged with `yjsClient`'s remote-origin symbol, so each
+    // user's undo stack stays their own instead of undoing peers' changes.
     const manager = new Y.UndoManager(editableMaps);
     setDoc(conn.doc);
     setUndoManager(manager);
@@ -70,5 +73,5 @@ export function useProjectDoc(projectId: string, fallbackName: string, user: str
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, user]);
 
-  return { project, doc, undoManager, awareness };
+  return { project, doc, undoManager, awareness, connection };
 }

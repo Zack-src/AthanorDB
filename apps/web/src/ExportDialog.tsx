@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { Project } from "@athanordb/shared";
 import { DownloadIcon } from "./Icons.js";
-import { Modal, FormatSelect } from "./Modal.js";
+import { Modal } from "./Modal.js";
 import { Button } from "./ui/Button.js";
 import { ErrorText, Hint } from "./ui/Alert.js";
-import { TEXTAREA_CODE_CLASS } from "./ui/inputStyles.js";
-import type { CanvasImageCapture, ExportFormat } from "./types.js";
+import { SELECT_CLASS, TEXTAREA_CODE_CLASS } from "./ui/inputStyles.js";
+import { useExporters } from "./plugins/usePlugins.js";
+import type { ExportResult } from "./plugins/types.js";
+import type { CanvasImageCapture, ImageFormat } from "./types.js";
 
 /** JPEG has no alpha channel, so the background must be painted in explicitly before drawing the (possibly-transparent) source image on top. */
 function pngDataUrlToJpeg(pngDataUrl: string, width: number, height: number): Promise<string> {
@@ -29,51 +32,105 @@ function pngDataUrlToJpeg(pngDataUrl: string, width: number, height: number): Pr
   });
 }
 
-const IMAGE_FORMATS = new Set<ExportFormat>(["png", "svg", "pdf"]);
+const IMAGE_OPTIONS: { value: ImageFormat; label: string }[] = [
+  { value: "png", label: "Image — PNG" },
+  { value: "svg", label: "Image — SVG" },
+  { value: "pdf", label: "PDF" },
+];
 
+/**
+ * Every text format in this dialog comes from an exporter *contribution* —
+ * DBML and the three SQL dialects included, which are now supplied by the
+ * built-in `athandordb.core-export` plugin. A user plugin adding SQLite (or
+ * anything else) shows up here with no change to this file.
+ *
+ * Image/PDF export stays native: it snapshots the live React Flow canvas,
+ * which is not something the plugin API exposes.
+ */
 function ExportDialog(props: {
   projectId: string;
   projectName: string;
+  project: Project | null;
   captureCanvasImage: (format: "png" | "svg") => Promise<CanvasImageCapture>;
   onClose: () => void;
 }) {
-  const [format, setFormat] = useState<ExportFormat>("dbml");
-  const [text, setText] = useState("");
+  const exporters = useExporters(props.projectId);
+  const [selection, setSelection] = useState<string>(() => `plugin:athanordb.core-export:dbml`);
+  const [result, setResult] = useState<ExportResult | null>(null);
   const [image, setImage] = useState<CanvasImageCapture | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isImage = IMAGE_FORMATS.has(format);
+
+  const imageFormat = selection.startsWith("image:") ? (selection.slice("image:".length) as ImageFormat) : null;
+  const exporter = useMemo(
+    () => exporters.find((e) => `plugin:${e.key}` === selection) ?? null,
+    [exporters, selection],
+  );
+
+  // Falling back keeps the dialog usable if the selected exporter's plugin is
+  // disabled or uninstalled while the dialog is open.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- recovering from an exporter that disappeared mid-dialog, not derived state
+    if (!imageFormat && !exporter && exporters.length > 0) setSelection(`plugin:${exporters[0].key}`);
+  }, [imageFormat, exporter, exporters]);
 
   useEffect(() => {
-    if (isImage) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the fetch this same effect kicks off
+    // Looked up here rather than taken from the memo above so this effect
+    // depends on the *list*, which only changes when a plugin is installed,
+    // toggled or removed — not on a per-render object identity.
+    const target = exporters.find((e) => `plugin:${e.key}` === selection);
+    if (!target) return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the export this same effect kicks off
     setBusy(true);
     setError(null);
-    const url =
-      format === "dbml"
-        ? `/api/projects/${props.projectId}/export/dbml?visual=1`
-        : `/api/projects/${props.projectId}/export/sql?dialect=${format}`;
-    fetch(url)
-      .then(async (res) => setText(res.ok ? await res.text() : `Error: ${res.status}`))
-      .finally(() => setBusy(false));
-  }, [format, isImage, props.projectId]);
+    target
+      .run(props.project ?? ({ id: props.projectId, name: props.projectName, tables: [], refs: [], enums: [], zones: [], stickyNotes: [] } as Project))
+      .then((value) => {
+        if (!cancelled) setResult(value as ExportResult);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setResult(null);
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [exporters, selection, props.project, props.projectId, props.projectName]);
 
   useEffect(() => {
-    if (!isImage) return;
+    if (!imageFormat) return;
+    let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the capture this same effect kicks off
     setBusy(true);
     setError(null);
-    props.captureCanvasImage(format === "svg" ? "svg" : "png")
-      .then(setImage)
-      .catch((err) => setError((err as Error).message))
-      .finally(() => setBusy(false));
-    // props.captureCanvasImage is a useCallback with an empty dep array in
-    // the parent, so it's stable — omitting it here (rather than in the
-    // caller) avoids re-capturing every time the parent re-renders for
-    // unrelated reasons.
+    props
+      .captureCanvasImage(imageFormat === "svg" ? "svg" : "png")
+      .then((value) => {
+        if (!cancelled) setImage(value);
+      })
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // props.captureCanvasImage is a useCallback with an empty dep array in the
+    // parent, so it's stable — omitting it avoids re-capturing on unrelated
+    // parent re-renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [format, isImage]);
+  }, [imageFormat]);
+
+  const text = result?.text ?? "";
 
   const copy = () => {
     navigator.clipboard.writeText(text);
@@ -89,11 +146,11 @@ function ExportDialog(props: {
   };
 
   const download = async () => {
-    if (format === "png" || format === "svg") {
-      if (image) downloadDataUrl(image.dataUrl, `${props.projectName}.${format}`);
+    if (imageFormat === "png" || imageFormat === "svg") {
+      if (image) downloadDataUrl(image.dataUrl, `${props.projectName}.${imageFormat}`);
       return;
     }
-    if (format === "pdf") {
+    if (imageFormat === "pdf") {
       if (!image) return;
       // jsPDF is only needed for this one branch — dynamic import keeps it
       // out of the bundle everyone else loads.
@@ -109,7 +166,7 @@ function ExportDialog(props: {
       pdf.save(`${props.projectName}.pdf`);
       return;
     }
-    const ext = format === "dbml" ? "dbml" : "sql";
+    const ext = result?.extension ?? exporter?.contribution.extension ?? "txt";
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     downloadDataUrl(url, `${props.projectName}.${ext}`);
@@ -119,25 +176,38 @@ function ExportDialog(props: {
   return (
     <Modal title="Export schema" onClose={props.onClose}>
       <div className="mb-2.5 flex items-center gap-2">
-        <FormatSelect value={format} onChange={setFormat} includeImageFormats />
-        {!isImage && (
-          <Button onClick={copy} disabled={busy}>
+        <select className={SELECT_CLASS} value={selection} onChange={(e) => setSelection(e.target.value)}>
+          {exporters.map((e) => (
+            <option key={e.key} value={`plugin:${e.key}`}>
+              {e.contribution.label}
+              {e.source === "user" ? ` — ${e.plugin.name}` : ""}
+            </option>
+          ))}
+          {IMAGE_OPTIONS.map((o) => (
+            <option key={o.value} value={`image:${o.value}`}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {!imageFormat && (
+          <Button onClick={copy} disabled={busy || !text}>
             {copied ? "Copied" : "Copy"}
           </Button>
         )}
-        <Button variant="primary" onClick={download} disabled={busy || (isImage && !image)}>
+        <Button variant="primary" onClick={download} disabled={busy || (imageFormat ? !image : !text)}>
           <DownloadIcon size={13} /> Download
         </Button>
       </div>
-      {isImage ? (
+      {imageFormat ? (
         <div className="flex min-h-80 flex-col items-center justify-center rounded-sm border border-border bg-[var(--color-bg-canvas)] p-3">
           {busy && <span className="text-text-muted">Rendering canvas…</span>}
           {!busy && image && <img src={image.dataUrl} alt="Canvas snapshot preview" className="max-h-[296px] max-w-full rounded-sm shadow-sm" />}
-          {format === "pdf" && !busy && image && <Hint>Downloads as a single-page PDF with this snapshot filling the page.</Hint>}
+          {imageFormat === "pdf" && !busy && image && <Hint>Downloads as a single-page PDF with this snapshot filling the page.</Hint>}
         </div>
       ) : (
         <textarea readOnly className={`${TEXTAREA_CODE_CLASS} h-80 w-full`} value={busy ? "Loading…" : text} />
       )}
+      {exporter?.source === "user" && <Hint>Generated by the “{exporter.plugin.name}” plugin.</Hint>}
       {error && <ErrorText>{error}</ErrorText>}
     </Modal>
   );

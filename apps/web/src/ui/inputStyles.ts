@@ -8,16 +8,13 @@
  * stays consistent and Tailwind class ordering can't fight the base.
  */
 const INPUT_BASE =
-  // A translucent white wash rather than a fixed token: the same field then
-  // steps up from whatever it sits on — page background, card, modal or canvas
-  // popover — instead of blending into one of them.
-  "rounded-md border border-border bg-white/[0.045] text-text caret-primary " +
-  "shadow-[inset_0_1px_2px_rgba(0,0,0,0.22)] " +
+  "rounded-lg border border-border/80 bg-surface/80 text-text caret-primary " +
   "placeholder:text-text-muted " +
-  "transition-[border-color,box-shadow,background-color] duration-150 ease-out " +
-  "enabled:hover:border-border-strong enabled:hover:bg-white/[0.06] " +
-  "focus:border-primary focus:bg-white/[0.07] focus:outline-none focus:ring-[3px] focus:ring-primary-light " +
+  "transition-all duration-150 ease-out " +
+  "enabled:hover:border-border-strong enabled:hover:bg-surface-hover/80 " +
+  "focus:border-primary focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary/30 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
+
 
 /** Default field — 36px tall. Forms, dialogs, page-level inputs. */
 export const INPUT_CLASS = `${INPUT_BASE} h-9 px-3 text-[13px]`;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Table } from "@athanordb/shared";
+import { MAX_NAME_LENGTH, type Table } from "@athanordb/shared";
 import { SettingsIcon } from "../Icons.js";
 import { SWATCH_CELL_CLASS, SWATCH_CELL_ACTIVE_CLASS, SWATCH_GRID_CLASS } from "../ColorSwatchPicker.js";
 import {
@@ -29,14 +29,19 @@ export function TableSettingsPopover({
 }) {
   const [open, setOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState(table.name);
+  const [lastName, setLastName] = useState(table.name);
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // Re-seed the draft when the table is renamed elsewhere (DBML panel, another
+  // user). Adjusted during render rather than in an effect — no extra commit,
+  // no flash of the previous name.
+  if (table.name !== lastName) {
+    setLastName(table.name);
     setNameDraft(table.name);
-  }, [table.name]);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -112,6 +117,7 @@ export function TableSettingsPopover({
               <input
                 className={POPOVER_INPUT_CLASS}
                 value={nameDraft}
+                maxLength={MAX_NAME_LENGTH}
                 onChange={(e) => setNameDraft(e.target.value)}
                 onBlur={commitRename}
                 onKeyDown={(e) => e.key === "Enter" && commitRename()}

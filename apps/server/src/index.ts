@@ -15,6 +15,7 @@ import { registerAuthRoutes } from "./routes/auth.js";
 import { registerInvitationRoutes } from "./routes/invitations.js";
 import { getProjectRow, registerProjectRoutes } from "./routes/projects.js";
 import { registerTeamRoutes } from "./routes/teams.js";
+import { registerConvertRoutes } from "./routes/convert.js";
 import { registerUserRoutes } from "./routes/users.js";
 import { closeAllRooms, flushAllRooms, getRoom } from "./yjs/room.js";
 
@@ -81,6 +82,7 @@ registerInvitationRoutes(app);
 registerUserRoutes(app);
 registerTeamRoutes(app);
 registerProjectRoutes(app);
+registerConvertRoutes(app);
 
 // Single-process production deployment: serve the built web app once it
 // exists. In dev, apps/web runs its own Vite server and proxies /api and /ws

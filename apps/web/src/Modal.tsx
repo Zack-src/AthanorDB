@@ -1,8 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { CloseIcon } from "./Icons.js";
 import { Button } from "./ui/Button.js";
-import { SELECT_CLASS } from "./ui/inputStyles.js";
-import type { ExportFormat } from "./types.js";
 
 export function Modal(props: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   const { onClose } = props;
@@ -34,23 +32,5 @@ export function Modal(props: { title: string; onClose: () => void; children: Rea
         <div className="overflow-y-auto p-[18px]">{props.children}</div>
       </div>
     </div>
-  );
-}
-
-export function FormatSelect(props: { value: ExportFormat; onChange: (v: ExportFormat) => void; includeImageFormats?: boolean }) {
-  return (
-    <select className={SELECT_CLASS} value={props.value} onChange={(e) => props.onChange(e.target.value as ExportFormat)}>
-      <option value="dbml">DBML</option>
-      <option value="postgres">SQL — Postgres</option>
-      <option value="mysql">SQL — MySQL</option>
-      <option value="mssql">SQL — SQL Server</option>
-      {props.includeImageFormats && (
-        <>
-          <option value="png">Image — PNG</option>
-          <option value="svg">Image — SVG</option>
-          <option value="pdf">PDF</option>
-        </>
-      )}
-    </select>
   );
 }

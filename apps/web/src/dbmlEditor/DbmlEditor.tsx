@@ -12,6 +12,7 @@ import { formatDocument } from "./format.js";
 import { applyRename, startRename, type RenameRequest } from "./rename.js";
 import { duplicateSelection, sortTableColumns } from "./commands.js";
 import { CommandPalette, type PaletteItem } from "./CommandPalette.js";
+import { matchShortcut } from "../plugins/shortcuts.js";
 
 const PREF_WRAP = "athanordb_dbml_wrap";
 const PREF_FONT = "athanordb_dbml_font_size";
@@ -23,6 +24,24 @@ export interface DbmlEditorHandle {
   foldAll: () => void;
   unfoldAll: () => void;
   focus: () => void;
+}
+
+/**
+ * An editor command contributed by a plugin. It never touches CodeMirror: it
+ * receives the buffer plus the current selection and returns the replacement
+ * buffer, which keeps plugin code independent of the editor implementation.
+ */
+export interface PluginEditorCommand {
+  key: string;
+  label: string;
+  detail?: string;
+  /** e.g. `"Ctrl+Alt+S"` — bound while the editor has focus, never globally. */
+  shortcut?: string;
+  run: (input: {
+    text: string;
+    selection: { from: number; to: number };
+    selectedText: string;
+  }) => Promise<{ text?: string | null; message?: string }>;
 }
 
 interface CursorInfo {
@@ -68,6 +87,8 @@ export const DbmlEditor = forwardRef<
     onSave: () => void;
     problem?: ServerProblem | null;
     scrollToTable?: { tableName: string; requestId: number } | null;
+    pluginCommands?: PluginEditorCommand[];
+    onPluginMessage?: (message: string, isError?: boolean) => void;
   }
 >(function DbmlEditor(props, ref) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -190,6 +211,56 @@ export const DbmlEditor = forwardRef<
     [run, runInPanel],
   );
 
+  const { pluginCommands, onPluginMessage } = props;
+
+  /** Runs a plugin editor command against the live buffer and adopts what it returns. */
+  const runPluginCommand = useCallback(
+    async (command: PluginEditorCommand) => {
+      const view = viewRef.current;
+      if (!view) return;
+      const { state } = view;
+      const selection = { from: state.selection.main.from, to: state.selection.main.to };
+      const text = state.doc.toString();
+      try {
+        const result = await command.run({ text, selection, selectedText: state.sliceDoc(selection.from, selection.to) });
+        const next = result?.text;
+        if (typeof next === "string" && next !== view.state.doc.toString()) {
+          const current = view.state.doc.length;
+          view.dispatch({
+            changes: { from: 0, to: current, insert: next },
+            selection: { anchor: Math.min(state.selection.main.anchor, next.length) },
+          });
+        }
+        if (result?.message) onPluginMessage?.(result.message);
+      } catch (err) {
+        onPluginMessage?.(err instanceof Error ? err.message : String(err), true);
+      }
+      view.focus();
+    },
+    [onPluginMessage],
+  );
+
+  /**
+   * Plugin editor shortcuts, bound on the editor container rather than the
+   * window: a plugin must not be able to shadow a key combination while the
+   * user is somewhere else in the app.
+   */
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !pluginCommands || pluginCommands.length === 0) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const command = matchShortcut(pluginCommands, event);
+      if (!command) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void runPluginCommand(command);
+    };
+    // Capture phase, for the same reason as the canvas: CodeMirror handles
+    // keydown on the editor itself and would swallow the combination first.
+    el.addEventListener("keydown", onKeyDown, true);
+    return () => el.removeEventListener("keydown", onKeyDown, true);
+  }, [pluginCommands, runPluginCommand]);
+
   const paletteItems = useMemo((): PaletteItem[] => {
     const view = viewRef.current;
     if (!view || !palette) return [];
@@ -226,6 +297,14 @@ export const DbmlEditor = forwardRef<
         },
         { id: "font-in", label: "Increase font size", hint: "Ctrl+=", kind: "cmd", run: () => setFontSize((s) => Math.min(24, s + 1)) },
         { id: "font-out", label: "Decrease font size", hint: "Ctrl+-", kind: "cmd", run: () => setFontSize((s) => Math.max(10, s - 1)) },
+        ...(pluginCommands ?? []).map((command) => ({
+          id: `plugin:${command.key}`,
+          label: command.label,
+          kind: "plugin",
+          detail: command.detail,
+          hint: command.shortcut,
+          run: () => void runPluginCommand(command),
+        })),
       ];
     }
 
@@ -282,7 +361,7 @@ export const DbmlEditor = forwardRef<
       });
     }
     return items;
-  }, [palette, run, runInPanel, wrap]);
+  }, [palette, run, runInPanel, wrap, pluginCommands, runPluginCommand]);
 
   const commitRename = () => {
     const view = viewRef.current;

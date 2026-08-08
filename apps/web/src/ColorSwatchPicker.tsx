@@ -51,11 +51,20 @@ export function ColorSwatchPicker(props: {
 }) {
   const [open, setOpen] = useState(false);
   const [hexDraft, setHexDraft] = useState(props.value);
+  const [lastValue, setLastValue] = useState(props.value);
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setHexDraft(props.value), [props.value]);
+  // Re-seed the draft when the committed color changes, adjusting state during
+  // render rather than from an effect: React re-runs this component before
+  // touching the DOM, so there is no flash of the stale value and no second
+  // render pass (see "You Might Not Need an Effect" — adjusting state when a
+  // prop changes).
+  if (props.value !== lastValue) {
+    setLastValue(props.value);
+    setHexDraft(props.value);
+  }
 
   useEffect(() => {
     if (!open) return;

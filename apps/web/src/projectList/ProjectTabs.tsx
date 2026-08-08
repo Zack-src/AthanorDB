@@ -7,10 +7,11 @@ export interface ProjectSection {
 }
 
 export const PROJECT_SECTIONS: ProjectSection[] = [
-  { key: "active", label: "Projects", empty: "No projects yet — create one above to get started." },
-  { key: "archived", label: "Archive", empty: "Archive is empty." },
-  { key: "trashed", label: "Trash", empty: "Trash is empty." },
+  { key: "active", label: "Projets Actifs", empty: "Aucun projet actif pour le moment — créez-en un ci-dessus pour commencer." },
+  { key: "archived", label: "Archives", empty: "Les archives sont vides." },
+  { key: "trashed", label: "Corbeille", empty: "La corbeille est vide." },
 ];
+
 
 /** Active/Archive/Trash tab bar, each with a count badge. */
 export function ProjectTabs(props: { projects: ProjectSummary[]; section: ProjectStatus; onSectionChange: (s: ProjectStatus) => void }) {

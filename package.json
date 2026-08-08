@@ -2,6 +2,7 @@
   "name": "athanordb",
   "private": true,
   "version": "0.0.1",
+  "license": "MIT",
   "type": "module",
   "description": "Local-first DBML schema diagram editor with multi-user editing and history.",
   "workspaces": [

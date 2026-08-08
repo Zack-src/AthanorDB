@@ -4,11 +4,31 @@ import * as awarenessProtocol from "y-protocols/awareness.js";
 import * as encoding from "lib0/encoding.js";
 import * as decoding from "lib0/decoding.js";
 import type { WebSocket } from "ws";
+import {
+  ENUMS_KEY,
+  META_KEY,
+  REFS_KEY,
+  STICKY_NOTES_KEY,
+  TABLES_KEY,
+  ZONES_KEY,
+  clampCollectionValue,
+  clampMetaValue,
+} from "@athanordb/shared";
 import { appendRevision, saveSnapshot, loadSnapshot } from "./persistence.js";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 const SNAPSHOT_DEBOUNCE_MS = 2000;
+
+const COLLECTION_KEYS = [META_KEY, TABLES_KEY, REFS_KEY, ENUMS_KEY, ZONES_KEY, STICKY_NOTES_KEY];
+
+/**
+ * Transaction origin for the server's own clamping writes. A plain string
+ * (never a WebSocket) so the correction broadcasts to *every* client
+ * including the one that sent the over-long value — otherwise that client
+ * would keep its own longer version and the docs would diverge.
+ */
+const LIMIT_ORIGIN = "system";
 
 interface ConnMeta {
   author: string;
@@ -27,6 +47,8 @@ export class Room {
   private readonly conns = new Map<WebSocket, ConnMeta>();
   private snapshotTimer: NodeJS.Timeout | null = null;
   private destroyed = false;
+  /** Collection key -> entity ids written since the last `enforceLimits()` pass. */
+  private readonly pendingChecks = new Map<string, Set<string>>();
 
   constructor(
     private readonly projectId: string,
@@ -36,6 +58,23 @@ export class Room {
     if (snapshot) Y.applyUpdate(this.doc, snapshot);
 
     this.awareness = new awarenessProtocol.Awareness(this.doc);
+
+    // Note every entity touched by an incoming update so `enforceLimits()`
+    // only has to re-check what actually changed, instead of walking the
+    // whole project on every keystroke-sized update.
+    for (const collection of COLLECTION_KEYS) {
+      this.doc.getMap(collection).observe((event, transaction) => {
+        if (transaction.origin === LIMIT_ORIGIN) return;
+        let ids = this.pendingChecks.get(collection);
+        if (!ids) {
+          ids = new Set();
+          this.pendingChecks.set(collection, ids);
+        }
+        event.changes.keys.forEach((change, key) => {
+          if (change.action !== "delete") ids.add(key);
+        });
+      });
+    }
 
     this.doc.on("update", (update: Uint8Array, origin: unknown) => {
       // A project deleted out from under a still-open room (e.g. someone has
@@ -133,6 +172,10 @@ export class Room {
         } else if (innerType === syncProtocol.messageYjsUpdate) {
           syncProtocol.readUpdate(decoder, this.doc, conn);
         }
+        // Yjs observers run synchronously during transaction cleanup, so by
+        // the time the read above returns, `pendingChecks` holds everything
+        // this frame touched.
+        this.enforceLimits();
       }
     } else if (messageType === MESSAGE_AWARENESS) {
       // Cursor/presence stays allowed regardless of write access — cosmetic, not a schema mutation.
@@ -202,6 +245,39 @@ export class Room {
     } catch (err) {
       console.error(`[room ${this.projectId}] failed to save snapshot:`, err);
     }
+  }
+
+  /**
+   * Re-applies the shared per-field length limits to everything the last
+   * update touched, truncating anything over its cap.
+   *
+   * The client's `maxLength` attributes are UX only: a WS frame is raw Yjs
+   * ops, so a non-browser client (or a patched one) can put a megabyte in a
+   * table name and `receive()` above would happily apply it — the permission
+   * check is the only thing that ever looked at these frames. Clamping here,
+   * rather than rejecting the frame, keeps the CRDT convergent: the offender's
+   * ops stay in the log, and the truncation is just another edit everyone
+   * (including the offender) receives.
+   */
+  private enforceLimits(): void {
+    if (this.pendingChecks.size === 0) return;
+    const pending = Array.from(this.pendingChecks.entries());
+    this.pendingChecks.clear();
+
+    this.doc.transact(() => {
+      for (const [collection, ids] of pending) {
+        const map = this.doc.getMap(collection);
+        for (const id of ids) {
+          const current = map.get(id);
+          const clamped =
+            collection === META_KEY ? clampMetaValue(id, current) : clampCollectionValue(collection, current);
+          if (clamped !== null) {
+            console.warn(`[room ${this.projectId}] clamped over-length input in ${collection}/${id}`);
+            map.set(id, clamped);
+          }
+        }
+      }
+    }, LIMIT_ORIGIN);
   }
 
   private broadcast(message: Uint8Array, exclude?: WebSocket): void {

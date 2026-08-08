@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from "react";
 import { Handle, Position, useEdges, type Node, type NodeProps } from "@xyflow/react";
-import type { Field, Table } from "@athanordb/shared";
+import { MAX_NAME_LENGTH, type Field, type Table } from "@athanordb/shared";
 import { CommentThread } from "./CommentThread.js";
 import { CodeIcon, PlusIcon } from "./Icons.js";
 import { DEFAULT_HEADER_COLOR, TableSettingsPopover } from "./table/TableSettingsPopover.js";
@@ -108,7 +108,7 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
             value={nameDraft}
             onChange={(e) => setNameDraft(e.target.value)}
             onBlur={commitRename}
-            maxLength={200}
+            maxLength={MAX_NAME_LENGTH}
             onKeyDown={(e) => {
               if (e.key === "Enter") commitRename();
               if (e.key === "Escape") {

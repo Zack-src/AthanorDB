@@ -15,6 +15,7 @@ Local-first, self-hosted, DBML-native database schema diagramming — think dbdi
 - **Manual reference routing**: double-click a ref line to add a waypoint and route it around tables; lines animate in the direction of cardinality (both directions for many-to-many).
 - **Import**: DBML or raw SQL DDL (Postgres/MySQL/MSSQL), via paste or file upload. Re-importing merges by name, so existing positions/styling/detail levels are preserved rather than reset.
 - **Export**: DBML, SQL (Postgres/MySQL/MSSQL), or a canvas snapshot as PNG/SVG/PDF.
+- **Plugins**: add your own export dialects, import parsers, canvas commands and DBML-editor commands without touching the app. Plugin code runs in a sandboxed Web Worker — see [Plugins](#plugins).
 - **Validation panel**: flags circular references, missing FK targets, and duplicate table/field names (informational — never blocks editing).
 - **History**: every change is a revision. Browse the timeline, label checkpoints (e.g. `v1.0`), preview a past revision's DBML, see a schema-level diff against the current state, and restore non-destructively (restoring creates a new revision, it never rewrites history).
 - **Per-user preferences**: canvas text size and last pan/zoom position are remembered per person, not shared.
@@ -107,15 +108,74 @@ Password must be 8–128 characters. Respects `ATHANORDB_DB_PATH` same as the se
 - **Teams** scope project visibility. A project with no team assigned is visible to everyone; assigning a team restricts it to that team's members plus the creator and admins, at `view` / `edit` / `administrator` level.
 - **Admins** manage users, teams and invitations, and can reset any password (which also kills that user's sessions).
 
+## Plugins
+
+The **Plugins** button in the project header opens the manager: install, enable/disable, remove, and read a plugin's console output. A one-click example plugin (a SQLite DDL exporter plus two commands) is included to copy from.
+
+**How it works.** Every export format, import format and command in the app is a *contribution*, and the built-in DBML/SQL formats are themselves plugins (`athanordb.core-export`, `athanordb.core-import`, `athanordb.core-canvas`) — so a plugin that adds SQLite sits next to Postgres with no special casing. Four kinds are supported:
+
+| Contribution      | Input                                | Returns                            | Appears in                          |
+| ----------------- | ------------------------------------ | ---------------------------------- | ----------------------------------- |
+| `registerExporter`      | the `Project`                        | text (+ file extension)            | Export dialog                       |
+| `registerImporter`      | the pasted/uploaded text             | DBML source                        | Import dialog                       |
+| `registerCanvasCommand` | the `Project`                        | the modified `Project`             | Canvas toolbar → plugin menu        |
+| `registerEditorCommand` | `{ text, selection, selectedText }`  | the replacement buffer             | DBML editor palette (Ctrl+Shift+P)  |
+
+Every `run` also receives a second argument: `{ settings, selection: { tableIds } }` — the plugin's own configured settings, and which tables are selected on the canvas.
+
+```js
+athanor.plugin({
+  id: "me.json-export",
+  name: "JSON export",
+  version: "1.0.0",
+  settings: [{ key: "pretty", label: "Pretty-print", type: "boolean", default: true }],
+});
+
+athanor.registerExporter({
+  id: "json",
+  label: "JSON",
+  extension: "json",
+  run: function (project, context) {
+    return JSON.stringify(project, null, context.settings.pretty ? 2 : 0);
+  },
+});
+
+athanor.registerCanvasCommand({
+  id: "drop-notes",
+  label: "Clear notes on selected tables",
+  shortcut: "Ctrl+Alt+N",
+  run: function (project, context) {
+    var selected = context.selection.tableIds;
+    return Object.assign({}, project, {
+      tables: project.tables.map(function (t) {
+        return selected.indexOf(t.id) === -1 ? t : Object.assign({}, t, { note: undefined });
+      }),
+    });
+  },
+});
+```
+
+**Settings** are declared as data (`string` / `number` / `boolean` / `select`) and rendered by the app — a plugin never draws its own UI. Values are stored per plugin and passed to every call. **Shortcuts** are optional per command: canvas commands bind globally (never while typing), DBML-editor commands bind only while the editor has focus, and the first plugin to claim a combination keeps it. A user plugin's source can be downloaded again from the manager.
+
+An importer returns DBML because the server's existing merge-by-name import route then applies it — your plugin only has to understand its own input format. A canvas command returns the whole project; the app diffs it into the Yjs document, so the change syncs to everyone with the project open, and only the entities that really changed produce an update.
+
+**Security and scope.**
+
+- Plugin code runs in a Web Worker built from a Blob URL: no DOM, no React state, no access to the page's memory. The worker's `fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts`, `indexedDB` and `caches` are removed before the plugin body runs, so a plugin cannot call the API as you or send your schema anywhere.
+- Loading is bounded (5s) and every call is bounded (10s); a plugin that hangs is terminated and restarted on the next call rather than freezing the app.
+- This is isolation, not a trust boundary against a determined author: **only install plugin code you trust.**
+- Plugins are stored in **your browser's** `localStorage` only. Nothing is uploaded, and nothing is shared with your team or other users of the same server — installing one is a decision that affects only you.
+
 ## Repo layout
 
 ```
 apps/
   web/      React app (canvas editor, DBML/SQL panels)
+    src/plugins/   plugin registry, Worker sandbox host, built-in plugins, example plugin
   server/   Fastify + WS server, SQLite storage, Yjs doc host
 packages/
   dbml-engine/  DBML <-> SQL <-> internal-model conversion, diff, validation
-  shared/       shared TS types (schema model, DTOs, protocol messages), Yjs doc <-> Project binding
+  shared/       shared TS types (schema model, DTOs, protocol messages), Yjs doc <-> Project binding, input length limits
 docs/
   todo.md       full project plan and progress log
 ```
@@ -123,3 +183,9 @@ docs/
 ## Status
 
 Actively developed. See `docs/todo.md` for the full plan, current progress, and known limitations.
+
+CI (`.github/workflows/ci.yml`) runs lint, build and tests on every push to `main` and every pull request.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

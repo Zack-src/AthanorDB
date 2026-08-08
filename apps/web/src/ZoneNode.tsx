@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { NodeResizer, type Node, type NodeProps } from "@xyflow/react";
-import type { Zone } from "@athanordb/shared";
+import { MAX_NAME_LENGTH, type Zone } from "@athanordb/shared";
 import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
 import { INPUT_XS_CLASS } from "./ui/inputStyles.js";
 
@@ -57,7 +57,7 @@ function ZoneNodeImpl({ data, selected }: NodeProps<ZoneNodeType>) {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onBlur={commit}
-              maxLength={200}
+              maxLength={MAX_NAME_LENGTH}
               onKeyDown={(e) => {
                 if (e.key === "Enter") commit();
                 if (e.key === "Escape") {

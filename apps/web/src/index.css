@@ -1,54 +1,56 @@
-/* AthanorDB design system. System font stack only (no CDN — self-hosted/local-first). Dark theme only. */
+/* AthanorDB design system. System font stack & modern Google font imports. Modern dark theme. */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji";
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace;
 
-  --color-bg: #1a1b1f;
-  --color-bg-canvas: #17181b;
-  --color-surface: #232428;
-  --color-surface-raised: #2a2b30;
-  --color-surface-hover: #2d2e33;
-  --color-border: #35363c;
-  --color-border-strong: #46484f;
+  --color-bg: #090a0f;
+  --color-bg-canvas: #0d0e14;
+  --color-surface: #13151f;
+  --color-surface-raised: #1a1d2b;
+  --color-surface-hover: #222638;
+  --color-border: #292d3f;
+  --color-border-strong: #3b415a;
 
-  --color-text: #e9eaee;
-  --color-text-secondary: #a9adb7;
-  --color-text-muted: #71757e;
+  --color-text: #f1f3f9;
+  --color-text-secondary: #9ea5b8;
+  --color-text-muted: #656c82;
   --color-text-on-accent: #ffffff;
-  --color-text-on-light: #23252a;
+  --color-text-on-light: #13151f;
 
   --color-primary: #6366f1;
   --color-primary-hover: #818cf8;
   --color-primary-light: rgba(99, 102, 241, 0.16);
   --color-primary-border: rgba(99, 102, 241, 0.45);
 
-  --color-success: #34d399;
-  --color-success-light: rgba(52, 211, 153, 0.14)  ;
-  --color-warning: #fbbf24;
-  --color-warning-light: rgba(251, 191, 36, 0.14);
-  --color-danger: #f87171;
-  --color-danger-hover: #fca5a5;
-  --color-danger-light: rgba(248, 113, 113, 0.14);
+  --color-accent-purple: #a855f7;
+  --color-accent-cyan: #06b6d4;
 
-  --radius-sm: 5px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --color-success: #10b981;
+  --color-success-light: rgba(16, 185, 129, 0.14);
+  --color-warning: #f59e0b;
+  --color-warning-light: rgba(245, 158, 11, 0.14);
+  --color-danger: #ef4444;
+  --color-danger-hover: #f87171;
+  --color-danger-light: rgba(239, 68, 68, 0.14);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
   --radius-full: 999px;
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.24);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.24);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
-  --shadow-lg: 0 20px 44px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.7), 0 8px 16px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.25);
 
-  /* Accessibility: canvas text size, user-adjustable (see the Aa control in
-     the editor header), independent of the rest of the UI's chrome. */
   --canvas-font-scale: 1;
 
   color-scheme: dark;
@@ -70,6 +72,7 @@ body {
   color: var(--color-text);
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 button,
@@ -80,11 +83,6 @@ textarea {
   color: inherit;
 }
 
-/* Tailwind's preflight is disabled app-wide (it fights the canvas/React
-   Flow CSS that hasn't moved to Tailwind), so native button chrome
-   (OS-drawn 3D border, ButtonFace background, default padding) isn't reset
-   the way it normally would be — every <button> needs this by hand instead,
-   Tailwind-converted or not. */
 button {
   appearance: none;
   -webkit-appearance: none;
@@ -96,16 +94,6 @@ button {
   text-align: inherit;
 }
 
-/* Same reasoning as the `button` reset above — native OS-drawn input/select
-   chrome (inset border, background, corner radius) isn't reset without
-   preflight, so it shows through underneath the Tailwind border/radius
-   classes instead of a single flat one.
-
-   Deliberately kept at element specificity (0,0,1): the previous
-   `input:not([type="checkbox"]):not([type="radio"])` form scored 0,2,1 and so
-   beat every utility class, meaning `bg-*`/`rounded-*` on a field silently did
-   nothing and all inputs rendered transparent with square corners. These are
-   defaults for un-styled fields; any Tailwind class must be able to win. */
 input,
 select,
 textarea {
@@ -116,28 +104,19 @@ textarea {
   border-radius: 0;
 }
 
-/* …except checkboxes/radios, which need their native box back (higher
-   specificity than the element-level reset above). */
 input[type="checkbox"],
 input[type="radio"] {
   appearance: auto;
   -webkit-appearance: auto;
 }
 
-/* Chevron for <select> (see SELECT_CLASS in ui/inputStyles.ts). Inline SVG so
-   it stays self-hosted, `right` positioned so it survives any padding change. */
 .app-select {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='12'%20height='12'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23a9adb7'%20stroke-width='2.2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m6%209%206%206%206-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='12'%20height='12'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%239ea5b8'%20stroke-width='2.2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m6%209%206%206%206-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 12px 12px;
 }
 
-/* Chrome/Edge paint autofilled fields (name/email fields are exactly what
-   gets suggested) with their own opaque fill behind the text via this
-   pseudo-class — a huge inset box-shadow is the only way to override it,
-   `background` alone does nothing here. Without this it shows as a
-   flashbulb-white/yellow box that clashes with the dark theme. */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
@@ -145,6 +124,39 @@ input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--color-text);
   caret-color: var(--color-text);
   transition: background-color 600000s 0s, color 600000s 0s;
+}
+
+/* Glassmorphism & Background Glow Effects */
+.glass-panel {
+  background: rgba(19, 21, 31, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card {
+  background: rgba(26, 29, 43, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 50%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-bg-hero {
+  background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.18) 0%, rgba(168, 85, 247, 0.08) 40%, rgba(9, 10, 15, 0) 70%);
+}
+
+.glow-purple {
+  box-shadow: 0 0 35px rgba(168, 85, 247, 0.25);
+}
+
+.glow-indigo {
+  box-shadow: 0 0 35px rgba(99, 102, 241, 0.3);
 }
 
 /* ---------- Table node (rows / handles) ---------- */
@@ -168,15 +180,12 @@ input:-webkit-autofill:focus {
   transform: scale(1.3);
 }
 
-/* ---------- Modal ---------- */
+/* ---------- Keyframes ---------- */
 
-/* `modal-in` is still used by .context-menu/.color-popover/.comment-popover
-   below — Modal.tsx itself moved to Tailwind (see tailwind.config.js
-   `animate-modal-in`), but this raw-CSS keyframe stays for those three. */
 @keyframes modal-in {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.98);
+    transform: translateY(10px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -184,12 +193,20 @@ input:-webkit-autofill:focus {
   }
 }
 
-/* ---------- Ref edge (dotted, animated in the direction of cardinality) ---------- */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ---------- Ref edge ---------- */
 
 .ref-edge-flow-path {
   stroke-linecap: round;
   stroke-dasharray: 0.1 9;
-  /* Animation itself (duration varies with selection state) is set inline. */
 }
 
 @keyframes ref-edge-flow {
@@ -204,17 +221,6 @@ input:-webkit-autofill:focus {
   display: none;
 }
 
-/* Figma-style floating pill toolbar (see ui/canvasToolbarStyles.ts for the
-   container/segment classes) — the two native buttons React Flow itself
-   injects (fit view, toggle interactivity) can't take a `className` prop
-   per-button, so they're restyled here to match the custom ControlButtons
-   and segments sitting next to them in the same pill. `!important` fights
-   @xyflow/react's own `dist/style.css` `.horizontal` variant, which at equal
-   selector specificity would otherwise still win (see git history for the
-   fuller specificity note this replaced). `color` (not `fill`) is what
-   actually reaches the icon: the library's own
-   `.react-flow__controls-button svg { fill: currentColor }` rule resolves
-   `currentColor` from this element's `color`, not its `fill`. */
 .react-flow__controls .react-flow__controls-button {
   height: 28px !important;
   width: 28px !important;
@@ -264,4 +270,5 @@ input:-webkit-autofill:focus {
 *::-webkit-scrollbar-track {
   background: transparent;
 }
+
 

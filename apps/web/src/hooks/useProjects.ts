@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ProjectStatus, ProjectSummary } from "../types.js";
 
 export interface ProjectsHandle {
@@ -11,22 +11,27 @@ export interface ProjectsHandle {
   emptyTrash: (items: ProjectSummary[]) => Promise<string | null>;
 }
 
+/** Stable empty array, so a logged-out render doesn't hand consumers a new identity every time. */
+const EMPTY_PROJECTS: ProjectSummary[] = [];
+
 /** Owns the project-list CRUD calls; `active` gates the initial fetch on being logged in. */
 export function useProjects(active: boolean): ProjectsHandle {
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [fetched, setFetched] = useState<ProjectSummary[]>([]);
 
-  const refreshProjects = () => {
+  const refreshProjects = useCallback(() => {
     fetch("/api/projects")
       .then((r) => r.json())
-      .then(setProjects)
+      .then(setFetched)
       .catch(() => {});
-  };
+  }, []);
 
   useEffect(() => {
     if (active) refreshProjects();
-    else setProjects([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [active, refreshProjects]);
+
+  // Logged out -> no projects, derived rather than cleared from an effect: the
+  // fetched list is simply not shown, and it is refetched on the next login.
+  const projects = active ? fetched : EMPTY_PROJECTS;
 
   const createProject = async (name: string): Promise<string | null> => {
     try {

@@ -8,7 +8,6 @@ export interface ProjectRoutingHandle {
   openLinkError: string | null;
   openProjectAndNavigate: (p: ProjectSummary) => void;
   closeProject: () => void;
-  reset: () => void;
 }
 
 /**
@@ -20,8 +19,17 @@ export interface ProjectRoutingHandle {
 export function useProjectRouting(session: Session | null | "loading", projects: ProjectSummary[]): ProjectRoutingHandle {
   const [inviteToken] = useState(() => location.pathname.match(/^\/invite\/([^/]+)$/)?.[1] ?? null);
   const [initialProjectId] = useState(() => location.pathname.match(/^\/project\/([^/]+)$/)?.[1] ?? null);
-  const [openProject, setOpenProject] = useState<ProjectSummary | null>(null);
+  const [openProjectState, setOpenProject] = useState<ProjectSummary | null>(null);
   const [openLinkError, setOpenLinkError] = useState<string | null>(null);
+
+  /**
+   * Logging out closes whatever was open. Derived from the session rather than
+   * cleared by the logout callback: it used to be `routing.reset()` called from
+   * `useAuthSession`'s handler in `App`, which meant `App` referenced `routing`
+   * on a line above its own declaration.
+   */
+  const loggedIn = Boolean(session) && session !== "loading";
+  const openProject = loggedIn ? openProjectState : null;
 
   const openProjectAndNavigate = (p: ProjectSummary) => {
     setOpenLinkError(null);
@@ -34,10 +42,8 @@ export function useProjectRouting(session: Session | null | "loading", projects:
     history.pushState(null, "", "/");
   };
 
-  const reset = () => {
-    setOpenProject(null);
-    history.replaceState(null, "", "/");
-  };
+  // Keep deep-link URL intact when session is unauthenticated so users can sign in and land directly on the project.
+
 
   // Resolves a deep-linked `/project/:id` once we know who's logged in — the
   // project-list fetch races this, so this asks the server directly rather
@@ -85,5 +91,5 @@ export function useProjectRouting(session: Session | null | "loading", projects:
     document.title = openProject ? `${openProject.name} · AthanorDB` : "AthanorDB";
   }, [openProject]);
 
-  return { inviteToken, initialProjectId, openProject, openLinkError, openProjectAndNavigate, closeProject, reset };
+  return { inviteToken, initialProjectId, openProject, openLinkError, openProjectAndNavigate, closeProject };
 }

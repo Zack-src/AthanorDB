@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Field } from "@athanordb/shared";
+import {
+  MAX_DEFAULT_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_NOTE_LENGTH,
+  MAX_TYPE_LENGTH,
+  type Field,
+} from "@athanordb/shared";
 import { AsteriskIcon, DiamondIcon, IncrementIcon, KeyIcon, PencilIcon, TrashIcon } from "../Icons.js";
 import { Button } from "../ui/Button.js";
 import {
@@ -35,17 +41,22 @@ export function FieldEditorPopover({
   const [typeDraft, setTypeDraft] = useState(field.type);
   const [defaultDraft, setDefaultDraft] = useState(field.default ?? "");
   const [noteDraft, setNoteDraft] = useState(field.note ?? "");
+  const [lastField, setLastField] = useState(field);
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // Re-seed every draft when the column changes underneath us (DBML edit,
+  // remote change). Adjusted during render rather than in an effect — same
+  // reasoning as TableSettingsPopover.
+  if (field !== lastField) {
+    setLastField(field);
     setNameDraft(field.name);
     setTypeDraft(field.type);
     setDefaultDraft(field.default ?? "");
     setNoteDraft(field.note ?? "");
-  }, [field]);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -154,6 +165,7 @@ export function FieldEditorPopover({
                 autoFocus
                 className={POPOVER_INPUT_CLASS}
                 value={nameDraft}
+                maxLength={MAX_NAME_LENGTH}
                 onChange={(e) => setNameDraft(e.target.value)}
                 onBlur={commitName}
                 onKeyDown={(e) => e.key === "Enter" && commitName()}
@@ -166,6 +178,7 @@ export function FieldEditorPopover({
               <input
                 className={POPOVER_INPUT_MONO_CLASS}
                 value={typeDraft}
+                maxLength={MAX_TYPE_LENGTH}
                 onChange={(e) => setTypeDraft(e.target.value)}
                 onBlur={() => commitType()}
                 onKeyDown={(e) => e.key === "Enter" && commitType()}
@@ -231,6 +244,7 @@ export function FieldEditorPopover({
               <input
                 className={POPOVER_INPUT_MONO_CLASS}
                 value={defaultDraft}
+                maxLength={MAX_DEFAULT_LENGTH}
                 onChange={(e) => setDefaultDraft(e.target.value)}
                 onBlur={commitDefault}
                 onKeyDown={(e) => e.key === "Enter" && commitDefault()}
@@ -243,6 +257,7 @@ export function FieldEditorPopover({
               <input
                 className={POPOVER_INPUT_CLASS}
                 value={noteDraft}
+                maxLength={MAX_NOTE_LENGTH}
                 onChange={(e) => setNoteDraft(e.target.value)}
                 onBlur={commitNote}
                 onKeyDown={(e) => e.key === "Enter" && commitNote()}

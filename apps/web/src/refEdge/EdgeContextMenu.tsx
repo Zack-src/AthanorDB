@@ -1,7 +1,8 @@
+import { createPortal } from "react-dom";
 import type { EdgeContextMenuState } from "./useEdgeRouting.js";
 import { CONTEXT_MENU_ITEM_CLASS } from "../ui/contextMenuStyles.js";
 
-/** Right-click menu on an edge's path or a specific waypoint. */
+/** Right-click menu on an edge's path or a specific waypoint. Portaled to document.body for precise positioning. */
 export function EdgeContextMenu(props: {
   menu: EdgeContextMenuState;
   onDeletePoint: (index: number) => void;
@@ -9,9 +10,9 @@ export function EdgeContextMenu(props: {
   onResetColor?: () => void;
   onDeleteRef?: () => void;
 }) {
-  return (
+  return createPortal(
     <div
-      className="fixed z-[1000] min-w-[168px] animate-modal-in rounded-md border border-border bg-surface-raised p-1 shadow-lg nodrag nopan"
+      className="fixed z-[9999] min-w-[176px] animate-modal-in rounded-lg border border-border/80 bg-surface-raised/95 p-1.5 shadow-2xl glass-panel nodrag nopan text-xs font-medium"
       style={{ left: props.menu.x, top: props.menu.y }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -29,10 +30,11 @@ export function EdgeContextMenu(props: {
         </button>
       )}
       {props.onDeleteRef && (
-        <button className={CONTEXT_MENU_ITEM_CLASS} style={{ color: "#ef4444" }} onClick={props.onDeleteRef}>
+        <button className={`${CONTEXT_MENU_ITEM_CLASS} text-danger hover:bg-danger/10`} onClick={props.onDeleteRef}>
           Supprimer la relation
         </button>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

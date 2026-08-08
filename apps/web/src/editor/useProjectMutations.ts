@@ -93,15 +93,9 @@ export function useProjectMutations(liveProject: Project | null, doc: Y.Doc | nu
     });
   };
 
-  const resetAllLinks = () => {
-    if (!doc || !liveProject) return;
-    const refs = getRefsMap(doc);
-    doc.transact(() => {
-      for (const ref of liveProject.refs) {
-        if (ref.routingPoints) refs.set(ref.id, { ...ref, routingPoints: undefined });
-      }
-    });
-  };
+  // "Reset all link routing" used to live here; it is now the built-in
+  // `athanordb.core-canvas` plugin's `reset-link-routing` command, applied
+  // through `writeProjectToDoc` like any other canvas command.
 
   const duplicateSelected = useCallback(() => {
     if (!doc) return;
@@ -205,7 +199,6 @@ export function useProjectMutations(liveProject: Project | null, doc: Y.Doc | nu
     activeDetailLevel,
     autoLayout,
     setTablesColor,
-    resetAllLinks,
     duplicateSelected,
     onEdgesDelete,
     onConnect,

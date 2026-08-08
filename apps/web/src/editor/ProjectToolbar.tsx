@@ -1,6 +1,6 @@
 import { DisplayNameField } from "../DisplayNameField.js";
 import { PresenceList } from "../PresenceList.js";
-import type { AwarenessState } from "../yjsClient.js";
+import type { AwarenessState, ConnectionStatus } from "../yjsClient.js";
 import { Button } from "../ui/Button.js";
 import { BrandMark } from "../ui/BrandMark.js";
 import { Badge, CountBadge } from "../ui/Badge.js";
@@ -10,8 +10,9 @@ import {
   ClockIcon,
   DownloadIcon,
   LayoutGridIcon,
+  PuzzleIcon,
   RedoIcon,
-  RestoreIcon,
+  SettingsIcon,
   ShieldCheckIcon,
   UndoIcon,
   UploadIcon,
@@ -20,7 +21,9 @@ import {
 export interface ProjectToolbarProps {
   projectName: string;
   viewOnly: boolean;
-  connected: boolean;
+  connection: ConnectionStatus;
+  /** False until the first sync lands, even when the socket itself is already open. */
+  synced: boolean;
   onBack: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -28,8 +31,9 @@ export interface ProjectToolbarProps {
   onShowImport: () => void;
   onShowExport: () => void;
   onShowHistory: () => void;
-  onResetLinks: () => void;
+  onShowPlugins: () => void;
   onShowValidation: () => void;
+  onOpenSettings?: () => void;
   validationCount: number;
   hasValidationErrors: boolean;
   localUser: string;
@@ -38,56 +42,89 @@ export interface ProjectToolbarProps {
   onDisplayNameChange: (name: string) => void;
 }
 
-/** Project-editor header: back/undo/redo/layout, import/export/history/validate, presence + display name. Detail-level and canvas text-size controls live in the canvas's own floating toolbar (CanvasArea). */
+/**
+ * Live-sync state, shown only when it isn't the boring one: a dropped socket
+ * has to be visible, since edits made while it's down reach nobody else until
+ * the reconnect lands.
+ */
+function ConnectionIndicator({ connection, synced }: { connection: ConnectionStatus; synced: boolean }) {
+  if (connection === "connected" && synced) return null;
+  const reconnecting = connection === "reconnecting" || connection === "closed";
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-text-muted">
+      <span
+        className={`h-[7px] w-[7px] shrink-0 rounded-full ${
+          reconnecting ? "bg-danger shadow-[0_0_0_3px_var(--color-danger-light)]" : "bg-text-muted"
+        }`}
+      />
+      {reconnecting ? "reconnecting…" : "connecting…"}
+    </span>
+  );
+}
+
 export function ProjectToolbar(props: ProjectToolbarProps) {
   return (
-    <header className={APP_HEADER}>
-      <Button variant="ghost" size="icon" onClick={props.onBack} data-tooltip="Back to projects" data-tooltip-pos="bottom">
-        <ChevronLeftIcon size={16} />
-      </Button>
-      <BrandMark size={24} iconSize={13} />
-      <span className="mr-1.5 whitespace-nowrap text-[13.5px] font-semibold">{props.projectName}</span>
-      {props.viewOnly && <Badge tone="muted" className="ml-2">View only</Badge>}
-      <span className={TOOLBAR_DIVIDER} />
-      <div className={TOOLBAR_GROUP}>
-        <Button size="icon" onClick={props.onUndo} data-tooltip="Undo (Ctrl+Z)" data-tooltip-pos="bottom">
-          <UndoIcon />
+    <header className="h-14 shrink-0 px-4 border-b border-border/80 bg-surface/90 glass-panel flex items-center justify-between select-none z-30">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={props.onBack} data-tooltip="Retour aux projets" data-tooltip-pos="bottom">
+          <ChevronLeftIcon size={16} />
         </Button>
-        <Button size="icon" onClick={props.onRedo} data-tooltip="Redo (Ctrl+Shift+Z)" data-tooltip-pos="bottom">
-          <RedoIcon />
-        </Button>
-        <Button size="icon" onClick={props.onAutoLayout} data-tooltip="Auto-layout (dagre)" data-tooltip-pos="bottom">
-          <LayoutGridIcon size={14} />
-        </Button>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={props.onBack}>
+          <BrandMark size={24} iconSize={13} />
+          <span className="text-sm font-bold tracking-tight text-text">{props.projectName}</span>
+          {props.viewOnly && <Badge tone="muted" className="ml-1">Lecture seule</Badge>}
+        </div>
+
+        <span className="w-px h-4 bg-border/60 mx-1" />
+
+        <div className="flex items-center gap-1">
+          <Button size="icon" variant="ghost" onClick={props.onUndo} data-tooltip="Annuler (Ctrl+Z)" data-tooltip-pos="bottom">
+            <UndoIcon size={14} />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={props.onRedo} data-tooltip="Rétablir (Ctrl+Shift+Z)" data-tooltip-pos="bottom">
+            <RedoIcon size={14} />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={props.onAutoLayout} data-tooltip="Réorganiser (Auto-layout)" data-tooltip-pos="bottom">
+            <LayoutGridIcon size={14} />
+          </Button>
+        </div>
       </div>
-      <span className={TOOLBAR_SPACER} />
-      <div className={TOOLBAR_GROUP}>
-        <Button size="sm" onClick={props.onShowImport}>
-          <UploadIcon size={13} /> Import
-        </Button>
-        <Button size="sm" onClick={props.onShowExport}>
-          <DownloadIcon size={13} /> Export
-        </Button>
-        <Button size="sm" onClick={props.onShowHistory}>
-          <ClockIcon size={13} /> History
-        </Button>
-        <Button
-          size="sm"
-          onClick={props.onResetLinks}
-          data-tooltip="Réinitialise le tracé de tous les liens (retire les points de routage manuels)"
-          data-tooltip-pos="bottom"
-        >
-          <RestoreIcon size={13} /> Reset links
-        </Button>
-        <Button size="sm" onClick={props.onShowValidation}>
-          <ShieldCheckIcon size={13} /> Validate
-          {props.validationCount > 0 && <CountBadge count={props.validationCount} danger={props.hasValidationErrors} />}
-        </Button>
+
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 bg-surface-raised/60 p-1 rounded-lg border border-border/50">
+          <Button size="sm" variant="ghost" onClick={props.onShowImport} className="text-xs">
+            <UploadIcon size={13} /> Importer
+          </Button>
+          <Button size="sm" variant="ghost" onClick={props.onShowExport} className="text-xs">
+            <DownloadIcon size={13} /> Exporter
+          </Button>
+          <Button size="sm" variant="ghost" onClick={props.onShowHistory} className="text-xs">
+            <ClockIcon size={13} /> Historique
+          </Button>
+          <Button size="sm" variant="ghost" onClick={props.onShowPlugins} className="text-xs">
+            <PuzzleIcon size={13} /> Plugins
+          </Button>
+        </div>
+
+        <span className="w-px h-4 bg-border/60 mx-1" />
+
+        <PresenceList localName={props.localUser} localColor={props.localColor} remote={props.remoteAwareness} />
+
+        <div className="flex items-center gap-2 pl-2">
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-surface-raised border border-border/60 text-xs font-semibold">
+            <span className="w-2 h-2 rounded-full bg-success animate-pulse-subtle" />
+            <span className="text-text">{props.localUser}</span>
+          </div>
+
+          {props.onOpenSettings && (
+            <Button variant="ghost" size="icon" onClick={props.onOpenSettings} data-tooltip="Paramètres" data-tooltip-pos="bottom">
+              <SettingsIcon size={15} />
+            </Button>
+          )}
+        </div>
       </div>
-      <span className={TOOLBAR_DIVIDER} />
-      <PresenceList localName={props.localUser} localColor={props.localColor} remote={props.remoteAwareness} />
-      <DisplayNameField value={props.localUser} onCommit={props.onDisplayNameChange} />
-      {!props.connected && <span className="inline-flex items-center gap-1.5 text-xs text-text-muted">connecting…</span>}
     </header>
   );
 }
+
+

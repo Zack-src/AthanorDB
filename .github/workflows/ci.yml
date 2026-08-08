@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch makes the previous run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the engines range in package.json; better-sqlite3 builds
+          # from source here, so the Node major has to be one it supports.
+          node-version: 22
+          cache: npm
+
+      # `npm ci` runs the root postinstall, which builds packages/shared and
+      # packages/dbml-engine — everything downstream depends on those.
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # `npm run format:check` is deliberately not a gate yet: the repo has
+      # never been run through Prettier, so it fails on ~100 pre-existing
+      # files. Turn it on in the same change that reformats them.
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test

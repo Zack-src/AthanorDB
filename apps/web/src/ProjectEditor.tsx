@@ -1,6 +1,6 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
-import { getMetaMap } from "@athanordb/shared";
+import { getMetaMap, writeProjectToDoc, type Project } from "@athanordb/shared";
 import { validateProject, type ValidationIssue } from "@athanordb/dbml-engine";
 import { useProjectDoc } from "./useProjectDoc.js";
 import { useAwarenessStates } from "./useAwarenessStates.js";
@@ -17,6 +17,9 @@ import { useCanvasFontScale } from "./editor/useCanvasFontScale.js";
 import { useProjectMutations } from "./editor/useProjectMutations.js";
 import { useEditorKeyboardShortcuts } from "./editor/useEditorKeyboardShortcuts.js";
 import { ProjectToolbar } from "./editor/ProjectToolbar.js";
+import { useCanvasCommands } from "./plugins/usePlugins.js";
+import { matchShortcut } from "./plugins/shortcuts.js";
+import type { CanvasCommandResult } from "./plugins/types.js";
 
 // Each of these is only needed once a specific panel/dialog is actually
 // opened — Monaco (DbmlPanel) especially, which used to load eagerly for
@@ -26,6 +29,9 @@ const ImportDialog = lazy(() => import("./ImportDialog.js"));
 const ExportDialog = lazy(() => import("./ExportDialog.js"));
 const HistoryPanel = lazy(() => import("./HistoryPanel.js"));
 const ValidationPanel = lazy(() => import("./ValidationPanel.js"));
+const PluginManagerDialog = lazy(() => import("./PluginManagerDialog.js"));
+
+import { SettingsModal } from "./SettingsModal.js";
 
 export function ProjectEditor(props: {
   project: ProjectSummary;
@@ -35,13 +41,24 @@ export function ProjectEditor(props: {
   onBack: () => void;
 }) {
   const { project, user } = props;
-  const { project: liveProject, doc, undoManager, awareness } = useProjectDoc(project.id, project.name, user);
+  const {
+    project: liveProject,
+    doc,
+    undoManager,
+    awareness,
+    connection,
+  } = useProjectDoc(project.id, project.name, user);
   const remoteAwareness = useAwarenessStates(awareness);
   const [showImport, setShowImport] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [dbmlOpen, setDbmlOpen] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  const [showPlugins, setShowPlugins] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [pluginMessage, setPluginMessage] = useState<string | null>(null);
+
+  const canvasCommands = useCanvasCommands(project.id);
   const { fontScale, adjustFontScale } = useCanvasFontScale();
   const [highlightLinks, setHighlightLinks] = useState(loadHighlightLinks);
   const [hoveredTableId, setHoveredTableId] = useState<string | null>(null);
@@ -50,6 +67,38 @@ export function ProjectEditor(props: {
     setDbmlOpen(true);
     setDbmlScrollRequest((prev) => ({ tableName, requestId: (prev?.requestId ?? 0) + 1 }));
   }, []);
+
+  /**
+   * The canvas selection, held in a ref rather than passed as a dependency:
+   * commands read it at the moment they run, and re-creating `runCanvasCommand`
+   * on every selection change would re-render the whole canvas toolbar.
+   */
+  const selectedTableIdsRef = useRef<string[]>([]);
+
+  /**
+   * Runs a plugin canvas command and writes back whatever project it returns.
+   * `writeProjectToDoc` diffs entity by entity, so a command that only renames
+   * one table produces exactly one Yjs update — and the change lands in every
+   * collaborator's canvas through the normal sync path.
+   */
+  const runCanvasCommand = useCallback(
+    async (command: (typeof canvasCommands)[number]) => {
+      if (!liveProject || !doc) return;
+      const flash = (message: string) => {
+        setPluginMessage(message);
+        setTimeout(() => setPluginMessage(null), 4000);
+      };
+      try {
+        const selection = selectedTableIdsRef.current;
+        const result = (await command.run(liveProject, { selection })) as CanvasCommandResult;
+        if (result?.project) doc.transact(() => writeProjectToDoc(doc, result.project as Project));
+        flash(result?.message ?? `${command.contribution.label} applied`);
+      } catch (err) {
+        flash(`Plugin error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+    [liveProject, doc],
+  );
 
   const handleHighlightLinksChange = (val: boolean) => {
     setHighlightLinks(val);
@@ -94,6 +143,39 @@ export function ProjectEditor(props: {
   );
 
   const { nodes, onNodesChange } = useCanvasNodes(liveProject, doc, refFieldIdsByTable, user, highlightLinks, goToDbml);
+
+  const selectedTableIds = useMemo(
+    () => nodes.filter((n) => n.type === "table" && n.selected).map((n) => n.id),
+    [nodes],
+  );
+  useEffect(() => {
+    selectedTableIdsRef.current = selectedTableIds;
+  }, [selectedTableIds]);
+
+  /**
+   * Global bindings for plugin canvas commands. The app's own shortcuts are
+   * bound elsewhere and run first; anything typed into a field or the DBML
+   * editor is left alone.
+   */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, .cm-editor, [contenteditable='true']")) return;
+      const command = matchShortcut(
+        canvasCommands.map((c) => ({ command: c, shortcut: c.contribution.shortcut })),
+        event,
+      )?.command;
+      if (!command) return;
+      event.preventDefault();
+      void runCanvasCommand(command);
+    };
+    // Capture phase: a focused React Flow node stops keydown from bubbling to
+    // the window (it handles arrows/delete itself), so a bubble-phase listener
+    // never fires for the exact case these shortcuts are most useful in —
+    // right after clicking a table.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [canvasCommands, runCanvasCommand]);
   const edges = useCanvasEdges(liveProject, doc, nodes, highlightLinks, hoveredTableId, palette, onPaletteChange);
 
   const {
@@ -104,7 +186,6 @@ export function ProjectEditor(props: {
     activeDetailLevel,
     autoLayout,
     setTablesColor,
-    resetAllLinks,
     duplicateSelected,
     onEdgesDelete,
     onConnect,
@@ -117,7 +198,8 @@ export function ProjectEditor(props: {
       <ProjectToolbar
         projectName={project.name}
         viewOnly={project.permission === "view"}
-        connected={Boolean(liveProject)}
+        connection={connection}
+        synced={Boolean(liveProject)}
         onBack={props.onBack}
         onUndo={() => undoManager?.undo()}
         onRedo={() => undoManager?.redo()}
@@ -125,8 +207,9 @@ export function ProjectEditor(props: {
         onShowImport={() => setShowImport(true)}
         onShowExport={() => setShowExport(true)}
         onShowHistory={() => setShowHistory(true)}
-        onResetLinks={resetAllLinks}
+        onShowPlugins={() => setShowPlugins(true)}
         onShowValidation={() => setShowValidation(true)}
+        onOpenSettings={() => setShowSettings(true)}
         validationCount={validationIssues.length}
         hasValidationErrors={hasValidationErrors}
         localUser={user}
@@ -134,6 +217,14 @@ export function ProjectEditor(props: {
         remoteAwareness={remoteAwareness}
         onDisplayNameChange={props.onDisplayNameChange}
       />
+      {showSettings && (
+        <SettingsModal
+          session={{ id: props.userId, email: `${user.toLowerCase()}@workspace.local`, displayName: user, isAdmin: true }}
+          onClose={() => setShowSettings(false)}
+          onDisplayNameChange={props.onDisplayNameChange}
+        />
+      )}
+
       <div className="relative flex min-h-0 min-w-0 flex-1">
         {dbmlOpen && liveProject ? (
           <Suspense
@@ -182,6 +273,10 @@ export function ProjectEditor(props: {
             projectId={project.id}
             viewportUserId={props.userId}
             exportRef={canvasExportRef}
+            canvasCommands={canvasCommands}
+            onRunCanvasCommand={runCanvasCommand}
+            onOpenPlugins={() => setShowPlugins(true)}
+            statusMessage={pluginMessage}
           />
         </ReactFlowProvider>
       </div>
@@ -191,6 +286,7 @@ export function ProjectEditor(props: {
           <ExportDialog
             projectId={project.id}
             projectName={project.name}
+            project={liveProject}
             captureCanvasImage={captureCanvasImage}
             onClose={() => setShowExport(false)}
           />
@@ -199,6 +295,7 @@ export function ProjectEditor(props: {
           <HistoryPanel projectId={project.id} currentProject={liveProject} onClose={() => setShowHistory(false)} />
         )}
         {showValidation && <ValidationPanel issues={validationIssues} onClose={() => setShowValidation(false)} />}
+        {showPlugins && <PluginManagerDialog onClose={() => setShowPlugins(false)} />}
       </Suspense>
     </div>
   );

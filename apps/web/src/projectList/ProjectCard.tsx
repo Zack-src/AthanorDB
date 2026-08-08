@@ -1,3 +1,4 @@
+import { MAX_NAME_LENGTH } from "@athanordb/shared";
 import { ArchiveIcon, FolderIcon, PencilIcon, RestoreIcon, TrashIcon, UsersIcon } from "../Icons.js";
 import { Button } from "../ui/Button.js";
 import { Badge } from "../ui/Badge.js";
@@ -140,7 +141,7 @@ export function ProjectCard(props: {
           autoFocus
           className={`${INPUT_SM_CLASS} mb-0.5 w-full font-semibold`}
           value={props.nameDraft}
-          maxLength={200}
+          maxLength={MAX_NAME_LENGTH}
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => props.onNameDraftChange(e.target.value)}
           onBlur={props.onCommitRename}

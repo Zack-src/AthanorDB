@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Comment } from "@athanordb/shared";
+import { MAX_TEXT_LENGTH, type Comment } from "@athanordb/shared";
 import { CloseIcon, CommentIcon } from "./Icons.js";
 import { Button } from "./ui/Button.js";
 import { TEXTAREA_SM_CLASS } from "./ui/inputStyles.js";
@@ -122,7 +122,7 @@ export function CommentThread(props: {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Add a comment…"
-                maxLength={2000}
+                maxLength={MAX_TEXT_LENGTH}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit();
                 }}

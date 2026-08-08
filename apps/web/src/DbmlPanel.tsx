@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Project } from "@athanordb/shared";
 import { projectToDbml } from "@athanordb/dbml-engine";
 import { ChevronLeftIcon, CodeIcon, LayoutGridIcon, SettingsIcon } from "./Icons.js";
-import { DbmlEditor, type DbmlEditorHandle } from "./dbmlEditor/DbmlEditor.js";
+import { DbmlEditor, type DbmlEditorHandle, type PluginEditorCommand } from "./dbmlEditor/DbmlEditor.js";
+import { useEditorCommands } from "./plugins/usePlugins.js";
+import type { EditorCommandResult } from "./plugins/types.js";
 import type { ServerProblem } from "./dbmlEditor/lint.js";
 import { dbmlSignature } from "./dbmlEditor/symbols.js";
 import { Button } from "./ui/Button.js";
@@ -47,6 +49,8 @@ function DbmlPanel(props: {
   scrollToTable?: { tableName: string; requestId: number } | null;
 }) {
   const { project, projectId } = props;
+  const editorCommands = useEditorCommands(projectId);
+  const [pluginMessage, setPluginMessage] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<SyncStatus>("idle");
@@ -223,6 +227,24 @@ function DbmlPanel(props: {
     applyNow(textRef.current);
   }, [applyNow]);
 
+  /** Plugin editor commands, adapted to what `DbmlEditor` needs (text in, text out). */
+  const pluginCommands = useMemo(
+    (): PluginEditorCommand[] =>
+      editorCommands.map((command) => ({
+        key: command.key,
+        label: command.contribution.label,
+        detail: command.source === "user" ? command.plugin.name : undefined,
+        shortcut: command.contribution.shortcut,
+        run: async (input) => (await command.run(input)) as EditorCommandResult,
+      })),
+    [editorCommands],
+  );
+
+  const handlePluginMessage = useCallback((message: string, isError?: boolean) => {
+    setPluginMessage(`${isError ? "Plugin error: " : ""}${message}`);
+    setTimeout(() => setPluginMessage(null), 4000);
+  }, []);
+
   return (
     <div className="relative flex shrink-0 flex-col border-r border-border bg-surface nokey" style={{ width: panelWidth }}>
       <div
@@ -235,6 +257,7 @@ function DbmlPanel(props: {
         <CodeIcon size={14} className="text-text-muted" />
         <span className="text-[13px] font-semibold text-text">DBML</span>
         <SyncStatusPill status={status} />
+        {pluginMessage && <span className="truncate text-[11.5px] text-text-muted">{pluginMessage}</span>}
         <span className="ml-auto" />
         <Button
           variant="ghost"
@@ -272,6 +295,8 @@ function DbmlPanel(props: {
           onSave={handleSave}
           problem={problem}
           scrollToTable={props.scrollToTable}
+          pluginCommands={pluginCommands}
+          onPluginMessage={handlePluginMessage}
         />
       </div>
       {error && (

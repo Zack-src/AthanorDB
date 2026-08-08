@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { NodeResizer, type Node, type NodeProps } from "@xyflow/react";
-import type { StickyNote } from "@athanordb/shared";
+import { MAX_TEXT_LENGTH, type StickyNote } from "@athanordb/shared";
 import { ColorSwatchPicker } from "./ColorSwatchPicker.js";
 
 export interface StickyNoteNodeData {
@@ -40,7 +40,7 @@ function StickyNoteNodeImpl({ data, selected }: NodeProps<StickyNoteNodeType>) {
           value={note.text}
           onChange={(e) => data.onTextChange(e.target.value)}
           placeholder="Note…"
-          maxLength={2000}
+          maxLength={MAX_TEXT_LENGTH}
         />
         <div className="flex justify-end">
           <ColorSwatchPicker
