@@ -24,14 +24,20 @@ const isAbortedError = (err: unknown) => {
   );
 };
 
+// Overridable so more than one checkout (e.g. a second git worktree) can run
+// the dev stack side by side without both binding the same ports. Defaults
+// match the values every existing setup already expects.
+const WEB_PORT = Number(process.env.VITE_WEB_PORT) || 5173;
+const API_PORT = Number(process.env.VITE_API_PORT) || 3001;
+
 export default defineConfig({
   plugins: [react(), svgr()],
   server: {
-    port: 5173,
+    port: WEB_PORT,
     proxy: {
-      "/api": "http://localhost:3001",
+      "/api": `http://localhost:${API_PORT}`,
       "/ws": {
-        target: "ws://localhost:3001",
+        target: `ws://localhost:${API_PORT}`,
         ws: true,
         configure: (proxy) => {
           proxy.on("proxyReqWs", (_proxyReq, _req, socket: Socket) => {
