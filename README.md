@@ -19,7 +19,7 @@ Local-first, self-hosted, DBML-native database schema diagramming — think dbdi
 - **Validation panel**: flags circular references, missing FK targets, and duplicate table/field names (informational — never blocks editing).
 - **History**: every change is a revision. Browse the timeline, label checkpoints (e.g. `v1.0`), preview a past revision's DBML, see a schema-level diff against the current state, and restore non-destructively (restoring creates a new revision, it never rewrites history).
 - **Per-user preferences**: canvas text size and last pan/zoom position are remembered per person, not shared.
-- **Backup script**: dump every project to a `.dbml` file on disk (`npm run backup`).
+- **Backup & restore scripts**: dump every project to a `.dbml` file on disk (`npm run backup`), and bulk-import a backup directory back in as new projects (`npm run restore`).
 - **Dark theme**, single unified header, no cloud dependency — everything (fonts, editor, icons) is bundled, nothing loads from a CDN.
 
 ## Stack
@@ -90,6 +90,16 @@ Dump every project to a `.dbml` file (defaults to `./backups/<timestamp>/`):
 ```bash
 npm run backup [-- <outputDir>]
 ```
+
+### Restore
+
+Bulk-import a directory of `.dbml` files (as produced by `npm run backup` above) back in. Each file becomes a **new** project — this never overwrites an existing one, so restoring the same backup twice creates duplicates rather than risking data loss:
+
+```bash
+npm run restore -- <backupDir> [--owner <email>]
+```
+
+Without `--owner`, restored projects have no owner: any logged-in user can view them (the same default an ownerless project always gets), but only a global admin can manage or delete them — there's no "reassign owner" route yet to fix that up afterward. Pass `--owner` with an existing user's email to make that user the owner immediately.
 
 ### First admin account
 
