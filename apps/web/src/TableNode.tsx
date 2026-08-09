@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from "react";
 import { Handle, Position, useEdges, type Node, type NodeProps } from "@xyflow/react";
-import { MAX_NAME_LENGTH, type Field, type Table } from "@athanordb/shared";
+import { MAX_NAME_LENGTH, type Field, type Table, type TableIndex } from "@athanordb/shared";
 import { CommentThread } from "./CommentThread.js";
 import { CodeIcon, PlusIcon } from "./Icons.js";
 import { DEFAULT_HEADER_COLOR, TableSettingsPopover } from "./table/TableSettingsPopover.js";
@@ -33,6 +33,9 @@ export interface TableNodeData {
   onUpdateField?: (fieldId: string, updates: Partial<Field>) => void;
   onAddField?: (field: Omit<Field, "id">) => void;
   onDeleteField?: (fieldId: string) => void;
+  onAddIndex?: (fieldIds: string[], opts: { unique?: boolean; pk?: boolean; name?: string }) => void;
+  onUpdateIndex?: (indexId: string, updates: Partial<Pick<TableIndex, "unique" | "pk" | "name">>) => void;
+  onDeleteIndex?: (indexId: string) => void;
   [key: string]: unknown;
 }
 
@@ -154,6 +157,9 @@ function TableNodeImpl({ data, selected }: NodeProps<TableNodeType>) {
             palette={data.palette}
             onRename={data.onRename}
             onStyleChange={data.onStyleChange}
+            onAddIndex={data.onAddIndex}
+            onUpdateIndex={data.onUpdateIndex}
+            onDeleteIndex={data.onDeleteIndex}
             triggerClassName={HEADER_BTN_CLASS}
           />
         </div>

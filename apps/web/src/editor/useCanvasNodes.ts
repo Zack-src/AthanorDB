@@ -14,6 +14,7 @@ import {
   type Field,
   type Project,
   type Table,
+  type TableIndex,
 } from "@athanordb/shared";
 import { DEFAULT_PALETTE } from "../ColorSwatchPicker.js";
 import type { ZoneNodeType } from "../ZoneNode.js";
@@ -144,6 +145,43 @@ export function useCanvasNodes(
             }
             tables.set(table.id, { ...current, fields: updatedFields });
           });
+        },
+        // A table has at most one primary key — a 2+ column one is a
+        // `pk: true` index (DBML/SQL have no other way to express it), same
+        // as `dbml.ts`'s import side already treats it. Adding or flipping
+        // an index to `pk: true` clears every individual field's own `pk`
+        // flag and any *other* index's `pk` flag in the same transaction, so
+        // the table never ends up with two conflicting PK declarations.
+        onAddIndex: (fieldIds: string[], opts: { unique?: boolean; pk?: boolean; name?: string }) => {
+          if (fieldIds.length === 0) return;
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          const newIndex: TableIndex = { id: crypto.randomUUID(), fieldIds, unique: opts.unique, pk: opts.pk, name: opts.name };
+          doc.transact(() => {
+            const fields = opts.pk ? current.fields.map((f) => (f.pk ? { ...f, pk: false } : f)) : current.fields;
+            const indexes = opts.pk ? current.indexes.map((idx) => (idx.pk ? { ...idx, pk: false } : idx)) : current.indexes;
+            tables.set(table.id, { ...current, fields, indexes: [...indexes, newIndex] });
+          });
+        },
+        onUpdateIndex: (indexId: string, updates: Partial<Pick<TableIndex, "unique" | "pk" | "name">>) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          doc.transact(() => {
+            const fields = updates.pk ? current.fields.map((f) => (f.pk ? { ...f, pk: false } : f)) : current.fields;
+            const indexes = current.indexes.map((idx) => {
+              if (idx.id === indexId) return { ...idx, ...updates };
+              return updates.pk && idx.pk ? { ...idx, pk: false } : idx;
+            });
+            tables.set(table.id, { ...current, fields, indexes });
+          });
+        },
+        onDeleteIndex: (indexId: string) => {
+          const tables = getTablesMap(doc);
+          const current = tables.get(table.id);
+          if (!current) return;
+          tables.set(table.id, { ...current, indexes: current.indexes.filter((idx) => idx.id !== indexId) });
         },
       },
     }));
