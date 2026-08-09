@@ -747,6 +747,16 @@ export function CanvasArea(props: {
         zoomOnScroll={false}
         zoomActivationKeyCode="Control"
         minZoom={0.05}
+        // A schema with hundreds of tables otherwise mounts every TableNode's
+        // full DOM (every field row, every handle) regardless of what's
+        // actually panned into view — this is the one-line version of the
+        // "revisit if performance issues with 500+ tables" open decision:
+        // React Flow already tracks each node's position/size for its own
+        // viewport-culling math, so nothing outside the visible area (plus a
+        // small margin, per React Flow's own default) gets rendered at all.
+        // fitView/minimap/collaborator cursors are unaffected — they read
+        // node geometry, not the DOM.
+        onlyRenderVisibleElements
       >
         <Background color="#33353c" gap={20} />
         <Panel position="bottom-center" className="nodrag nopan pointer-events-none !bottom-4 flex flex-col items-center gap-2">
