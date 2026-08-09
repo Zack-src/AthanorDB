@@ -1,5 +1,5 @@
-import type { Comment, EnumDef, EnumValue, Field, Ref, StickyNote, Table, TableIndex, Zone } from "./schema.js";
-import { ENUMS_KEY, REFS_KEY, STICKY_NOTES_KEY, TABLES_KEY, ZONES_KEY } from "./yjsBinding.js";
+import type { Comment, EnumDef, EnumValue, Field, Ref, StickyNote, Table, TableGroup, TableIndex, Zone } from "./schema.js";
+import { ENUMS_KEY, REFS_KEY, STICKY_NOTES_KEY, TABLE_GROUPS_KEY, TABLES_KEY, ZONES_KEY } from "./yjsBinding.js";
 
 /**
  * Maximum lengths for every user-typed string that lives inside a project.
@@ -17,6 +17,41 @@ export const MAX_TEXT_LENGTH = 2000;
 export const MAX_AUTHOR_LENGTH = 100;
 export const MAX_COLOR_LENGTH = 64;
 export const MAX_PALETTE_COLORS = 64;
+
+/**
+ * Per-parent array-length caps — same reasoning as the string caps above:
+ * generous enough that no real schema ever notices, low enough that a
+ * scripted client can't grow a single entity's nested arrays without bound.
+ * Clamped the same way (silently truncated, not rejected) so the doc stays
+ * convergent.
+ */
+export const MAX_FIELDS_PER_TABLE = 200;
+export const MAX_INDEXES_PER_TABLE = 100;
+export const MAX_COMMENTS_PER_TABLE = 500;
+export const MAX_VALUES_PER_ENUM = 500;
+export const MAX_TABLES_PER_TABLE_GROUP = 500;
+
+/**
+ * Per-project top-level entity-count caps, enforced by the server against
+ * the *whole collection*, not a single entity — see `Room.enforceLimits()`.
+ * Generous relative to the "revisit at 500+ tables" performance note in
+ * docs/todo.md's open decisions: this is an abuse backstop, not a UX limit.
+ */
+export const MAX_TABLES_PER_PROJECT = 2000;
+export const MAX_REFS_PER_PROJECT = 4000;
+export const MAX_ENUMS_PER_PROJECT = 1000;
+export const MAX_ZONES_PER_PROJECT = 1000;
+export const MAX_STICKY_NOTES_PER_PROJECT = 2000;
+export const MAX_TABLE_GROUPS_PER_PROJECT = 500;
+
+export const COLLECTION_COUNT_LIMITS: Record<string, number> = {
+  [TABLES_KEY]: MAX_TABLES_PER_PROJECT,
+  [REFS_KEY]: MAX_REFS_PER_PROJECT,
+  [ENUMS_KEY]: MAX_ENUMS_PER_PROJECT,
+  [ZONES_KEY]: MAX_ZONES_PER_PROJECT,
+  [STICKY_NOTES_KEY]: MAX_STICKY_NOTES_PER_PROJECT,
+  [TABLE_GROUPS_KEY]: MAX_TABLE_GROUPS_PER_PROJECT,
+};
 
 interface ClipState {
   changed: boolean;
@@ -40,9 +75,19 @@ function clipEach<T>(
   values: T[] | undefined,
   clip: (value: T, state: ClipState) => T,
   state: ClipState,
+  maxCount?: number,
 ): T[] | undefined {
   if (!Array.isArray(values)) return values;
-  return values.map((value) => (value && typeof value === "object" ? clip(value, state) : value));
+  const capped = maxCount !== undefined && values.length > maxCount ? values.slice(0, maxCount) : values;
+  if (capped !== values) state.changed = true;
+  return capped.map((value) => (value && typeof value === "object" ? clip(value, state) : value));
+}
+
+/** Same idea as `clipEach`, for a plain array of primitives (e.g. a `TableGroup`'s `tableIds`). */
+function clipArrayLength<T>(values: T[] | undefined, maxCount: number, state: ClipState): T[] | undefined {
+  if (!Array.isArray(values) || values.length <= maxCount) return values;
+  state.changed = true;
+  return values.slice(0, maxCount);
 }
 
 function clipStyle<T extends { color?: string; borderColor?: string } | undefined>(style: T, state: ClipState): T {
@@ -92,9 +137,9 @@ export function clampTable(table: Table): Table | null {
     name: clipText(table.name, MAX_NAME_LENGTH, state),
     schemaName: clipText(table.schemaName, MAX_NAME_LENGTH, state),
     note: clipText(table.note, MAX_NOTE_LENGTH, state),
-    fields: clipEach(table.fields, clipField, state) as Field[],
-    indexes: clipEach(table.indexes, clipIndex, state) as TableIndex[],
-    comments: clipEach(table.comments, clipComment, state),
+    fields: clipEach(table.fields, clipField, state, MAX_FIELDS_PER_TABLE) as Field[],
+    indexes: clipEach(table.indexes, clipIndex, state, MAX_INDEXES_PER_TABLE) as TableIndex[],
+    comments: clipEach(table.comments, clipComment, state, MAX_COMMENTS_PER_TABLE),
     style: clipStyle(table.style, state),
   };
   return state.changed ? next : null;
@@ -115,7 +160,18 @@ export function clampEnum(enumDef: EnumDef): EnumDef | null {
   const next: EnumDef = {
     ...enumDef,
     name: clipText(enumDef.name, MAX_NAME_LENGTH, state),
-    values: clipEach(enumDef.values, clipEnumValue, state) as EnumValue[],
+    values: clipEach(enumDef.values, clipEnumValue, state, MAX_VALUES_PER_ENUM) as EnumValue[],
+  };
+  return state.changed ? next : null;
+}
+
+export function clampTableGroup(group: TableGroup): TableGroup | null {
+  const state: ClipState = { changed: false };
+  const next: TableGroup = {
+    ...group,
+    name: clipText(group.name, MAX_NAME_LENGTH, state),
+    tableIds: clipArrayLength(group.tableIds, MAX_TABLES_PER_TABLE_GROUP, state) as string[],
+    note: clipText(group.note, MAX_NOTE_LENGTH, state),
   };
   return state.changed ? next : null;
 }
@@ -158,6 +214,8 @@ export function clampCollectionValue(collection: string, value: unknown): unknow
       return clampZone(value as Zone);
     case STICKY_NOTES_KEY:
       return clampStickyNote(value as StickyNote);
+    case TABLE_GROUPS_KEY:
+      return clampTableGroup(value as TableGroup);
     default:
       return null;
   }

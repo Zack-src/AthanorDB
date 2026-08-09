@@ -1,17 +1,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Table } from "./schema.js";
+import type { EnumDef, Table, TableGroup } from "./schema.js";
 import {
+  COLLECTION_COUNT_LIMITS,
+  MAX_COMMENTS_PER_TABLE,
+  MAX_FIELDS_PER_TABLE,
+  MAX_INDEXES_PER_TABLE,
   MAX_NAME_LENGTH,
   MAX_NOTE_LENGTH,
   MAX_PALETTE_COLORS,
+  MAX_TABLES_PER_TABLE_GROUP,
   MAX_TEXT_LENGTH,
+  MAX_VALUES_PER_ENUM,
   clampCollectionValue,
+  clampEnum,
   clampMetaValue,
   clampStickyNote,
   clampTable,
+  clampTableGroup,
 } from "./limits.js";
-import { STICKY_NOTES_KEY, TABLES_KEY } from "./yjsBinding.js";
+import { REFS_KEY, STICKY_NOTES_KEY, TABLE_GROUPS_KEY, TABLES_KEY } from "./yjsBinding.js";
 
 function sampleTable(overrides: Partial<Table> = {}): Table {
   return {
@@ -100,6 +108,68 @@ test("clampCollectionValue dispatches by collection key and ignores non-entities
   assert.equal(table.name.length, MAX_NAME_LENGTH);
   assert.equal(clampCollectionValue(STICKY_NOTES_KEY, "not an object"), null);
   assert.equal(clampCollectionValue("unknownCollection", sampleTable()), null);
+});
+
+test("clampTable caps the number of fields, indexes and comments a table can carry", () => {
+  const fields = Array.from({ length: MAX_FIELDS_PER_TABLE + 10 }, (_, i) => ({
+    id: `f${i}`,
+    name: `col${i}`,
+    type: "int",
+  }));
+  const indexes = Array.from({ length: MAX_INDEXES_PER_TABLE + 5 }, (_, i) => ({ id: `i${i}`, fieldIds: ["f0"] }));
+  const comments = Array.from({ length: MAX_COMMENTS_PER_TABLE + 5 }, (_, i) => ({
+    id: `c${i}`,
+    author: "u",
+    text: "hi",
+    createdAt: "2026-01-01T00:00:00.000Z",
+  }));
+  const clamped = clampTable(sampleTable({ fields, indexes, comments }));
+  assert.ok(clamped);
+  assert.equal(clamped.fields.length, MAX_FIELDS_PER_TABLE);
+  assert.equal(clamped.indexes.length, MAX_INDEXES_PER_TABLE);
+  assert.equal(clamped.comments?.length, MAX_COMMENTS_PER_TABLE);
+});
+
+test("clampEnum caps the number of values", () => {
+  const enumDef: EnumDef = {
+    id: "e1",
+    name: "status",
+    position: { x: 0, y: 0 },
+    values: Array.from({ length: MAX_VALUES_PER_ENUM + 10 }, (_, i) => ({ id: `v${i}`, name: `v${i}` })),
+  };
+  const clamped = clampEnum(enumDef);
+  assert.ok(clamped);
+  assert.equal(clamped.values.length, MAX_VALUES_PER_ENUM);
+});
+
+test("clampTableGroup truncates the name and caps membership count", () => {
+  const group: TableGroup = {
+    id: "g1",
+    name: "a".repeat(MAX_NAME_LENGTH + 1),
+    tableIds: Array.from({ length: MAX_TABLES_PER_TABLE_GROUP + 5 }, (_, i) => `t${i}`),
+  };
+  const clamped = clampTableGroup(group);
+  assert.ok(clamped);
+  assert.equal(clamped.name.length, MAX_NAME_LENGTH);
+  assert.equal(clamped.tableIds.length, MAX_TABLES_PER_TABLE_GROUP);
+
+  assert.equal(clampTableGroup({ id: "g2", name: "fine", tableIds: ["t1", "t2"] }), null);
+});
+
+test("clampCollectionValue dispatches TableGroup too", () => {
+  const dispatched = clampCollectionValue(TABLE_GROUPS_KEY, {
+    id: "g1",
+    name: "a".repeat(MAX_NAME_LENGTH + 1),
+    tableIds: [],
+  }) as TableGroup;
+  assert.equal(dispatched.name.length, MAX_NAME_LENGTH);
+});
+
+test("COLLECTION_COUNT_LIMITS covers every collection that has one, and nothing else", () => {
+  assert.equal(typeof COLLECTION_COUNT_LIMITS[TABLES_KEY], "number");
+  assert.equal(typeof COLLECTION_COUNT_LIMITS[REFS_KEY], "number");
+  assert.equal(typeof COLLECTION_COUNT_LIMITS[TABLE_GROUPS_KEY], "number");
+  assert.equal(COLLECTION_COUNT_LIMITS.meta, undefined, "meta is a flat scalar map, not an entity collection");
 });
 
 test("clampMetaValue caps the project name and the palette", () => {

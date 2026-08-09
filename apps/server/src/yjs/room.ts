@@ -5,10 +5,12 @@ import * as encoding from "lib0/encoding.js";
 import * as decoding from "lib0/decoding.js";
 import type { WebSocket } from "ws";
 import {
+  COLLECTION_COUNT_LIMITS,
   ENUMS_KEY,
   META_KEY,
   REFS_KEY,
   STICKY_NOTES_KEY,
+  TABLE_GROUPS_KEY,
   TABLES_KEY,
   ZONES_KEY,
   clampCollectionValue,
@@ -20,7 +22,7 @@ const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 const SNAPSHOT_DEBOUNCE_MS = 2000;
 
-const COLLECTION_KEYS = [META_KEY, TABLES_KEY, REFS_KEY, ENUMS_KEY, ZONES_KEY, STICKY_NOTES_KEY];
+const COLLECTION_KEYS = [META_KEY, TABLES_KEY, REFS_KEY, ENUMS_KEY, ZONES_KEY, STICKY_NOTES_KEY, TABLE_GROUPS_KEY];
 
 /**
  * Transaction origin for the server's own clamping writes. A plain string
@@ -248,16 +250,24 @@ export class Room {
   }
 
   /**
-   * Re-applies the shared per-field length limits to everything the last
-   * update touched, truncating anything over its cap.
+   * Re-applies the shared per-field length/array-length limits to everything
+   * the last update touched, truncating anything over its cap, then — for
+   * collections with a top-level count limit — deletes back down to it.
    *
-   * The client's `maxLength` attributes are UX only: a WS frame is raw Yjs
-   * ops, so a non-browser client (or a patched one) can put a megabyte in a
-   * table name and `receive()` above would happily apply it — the permission
-   * check is the only thing that ever looked at these frames. Clamping here,
-   * rather than rejecting the frame, keeps the CRDT convergent: the offender's
-   * ops stay in the log, and the truncation is just another edit everyone
-   * (including the offender) receives.
+   * The client's `maxLength` attributes (and the fact the UI has no "add
+   * table #2001" button) are UX only: a WS frame is raw Yjs ops, so a
+   * non-browser client (or a patched one) can put a megabyte in a table name,
+   * or just keep inserting tables forever, and `receive()` above would
+   * happily apply either — the permission check is the only thing that ever
+   * looked at these frames. Clamping/deleting here rather than rejecting the
+   * frame keeps the CRDT convergent: the offender's ops stay in the log, and
+   * the correction is just another edit everyone (including the offender)
+   * receives.
+   *
+   * The count cap only ever removes entities from *this transaction's own*
+   * newly-touched set, never pre-existing ones — a burst that pushes a
+   * project over the limit loses its own excess, a legitimate project that
+   * happens to already be large is never touched by a later unrelated edit.
    */
   private enforceLimits(): void {
     if (this.pendingChecks.size === 0) return;
@@ -275,6 +285,24 @@ export class Room {
             console.warn(`[room ${this.projectId}] clamped over-length input in ${collection}/${id}`);
             map.set(id, clamped);
           }
+        }
+
+        const limit = COLLECTION_COUNT_LIMITS[collection];
+        if (limit === undefined) continue;
+        let over = map.size - limit;
+        if (over <= 0) continue;
+        let dropped = 0;
+        for (const id of ids) {
+          if (over <= 0) break;
+          if (!map.has(id)) continue;
+          map.delete(id);
+          over--;
+          dropped++;
+        }
+        if (dropped > 0) {
+          console.warn(
+            `[room ${this.projectId}] ${collection} exceeded its ${limit}-entry cap — dropped ${dropped} entity(ies) added by this update`,
+          );
         }
       }
     }, LIMIT_ORIGIN);
