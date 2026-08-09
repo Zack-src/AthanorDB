@@ -30,7 +30,19 @@ import { StickyNoteNode } from "./StickyNoteNode.js";
 import { EnumNode } from "./EnumNode.js";
 import { TableGroupNode } from "./TableGroupNode.js";
 import { CursorNode, type CursorNodeType } from "./CursorNode.js";
-import { ChevronRightIcon, FrameIcon, LayersIcon, LinkIcon, MinimapIcon, NoteIcon, PuzzleIcon, TableIcon, TagIcon } from "./Icons.js";
+import {
+  ChevronRightIcon,
+  CloseIcon,
+  FrameIcon,
+  LayersIcon,
+  LinkIcon,
+  MinimapIcon,
+  NoteIcon,
+  PuzzleIcon,
+  SearchIcon,
+  TableIcon,
+  TagIcon,
+} from "./Icons.js";
 import { FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP, loadShowMinimap, loadViewport, saveShowMinimap, viewportKey } from "./localPrefs.js";
 import { CONTEXT_MENU_CLASS, CONTEXT_MENU_ITEM_CLASS } from "./ui/contextMenuStyles.js";
 import {
@@ -44,6 +56,7 @@ import {
 import { SWATCH_CELL_CLASS } from "./ColorSwatchPicker.js";
 import type { CanvasCommandContribution, ResolvedContribution } from "./plugins/types.js";
 import type { AllNodes, CanvasExportHandle, CanvasNode } from "./types.js";
+import { DEFAULT_TABLE_HEIGHT, DEFAULT_TABLE_WIDTH } from "./refGeometry.js";
 
 const nodeTypes = {
   table: TableNode,
@@ -130,6 +143,73 @@ function CanvasContextMenu(props: {
         <TagIcon size={14} /> Add enum
       </button>
     </div>
+  );
+}
+
+/** Ctrl/Cmd+F floating search box — find a table by name and jump the viewport to it, Figma/dbdiagram-style. */
+function CanvasSearchPanel(props: {
+  query: string;
+  onQueryChange: (q: string) => void;
+  matchCount: number;
+  activeIndex: number;
+  onNext: () => void;
+  onPrev: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Panel position="top-right" className="nodrag nopan">
+      <div className="flex items-center gap-1.5 rounded-md border border-border bg-surface-raised px-2 py-1.5 shadow-lg">
+        <SearchIcon size={13} className="shrink-0 text-text-muted" />
+        <input
+          autoFocus
+          value={props.query}
+          onChange={(e) => props.onQueryChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (e.shiftKey) props.onPrev();
+              else props.onNext();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              props.onClose();
+            }
+          }}
+          placeholder="Find a table…"
+          className="w-40 border-none bg-transparent text-xs text-text placeholder:text-text-muted focus:outline-none"
+        />
+        {props.query.trim() !== "" && (
+          <span className="shrink-0 whitespace-nowrap text-[11px] text-text-muted">
+            {props.matchCount > 0 ? `${props.activeIndex + 1}/${props.matchCount}` : "0/0"}
+          </span>
+        )}
+        <button
+          type="button"
+          className="shrink-0 rounded p-0.5 text-text-muted enabled:hover:bg-surface-hover enabled:hover:text-text disabled:opacity-30"
+          onClick={props.onPrev}
+          disabled={props.matchCount === 0}
+          data-tooltip="Previous match (Shift+Enter)"
+        >
+          ▲
+        </button>
+        <button
+          type="button"
+          className="shrink-0 rounded p-0.5 text-text-muted enabled:hover:bg-surface-hover enabled:hover:text-text disabled:opacity-30"
+          onClick={props.onNext}
+          disabled={props.matchCount === 0}
+          data-tooltip="Next match (Enter)"
+        >
+          ▼
+        </button>
+        <button
+          type="button"
+          className="shrink-0 rounded p-0.5 text-text-muted hover:bg-surface-hover hover:text-text"
+          onClick={props.onClose}
+          data-tooltip="Close (Esc)"
+        >
+          <CloseIcon size={12} />
+        </button>
+      </div>
+    </Panel>
   );
 }
 
@@ -422,7 +502,7 @@ export function CanvasArea(props: {
   /** Transient feedback from the last plugin command, shown above the toolbar. */
   statusMessage: string | null;
 }) {
-  const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow();
+  const { screenToFlowPosition, fitView, getViewport, setViewport, setCenter } = useReactFlow();
   const [menu, setMenu] = useState<CanvasContextMenuState | null>(null);
   const [showMinimap, setShowMinimap] = useState(loadShowMinimap);
   // Lazy initializer: read once at mount, not on every render — this decides
@@ -476,6 +556,98 @@ export function CanvasArea(props: {
   };
 
   const closeMenu = useCallback(() => setMenu(null), []);
+
+  // Find-a-table-by-name (Ctrl/Cmd+F). Kept independent of the `nodes` prop
+  // identity — reads a ref updated in its own effect instead of depending on
+  // `props.nodes` directly — so a remote collaborator's edit elsewhere on the
+  // canvas can't yank the viewport back to the active match mid-search.
+  const nodesRef = useRef<CanvasNode[]>(props.nodes);
+  useEffect(() => {
+    nodesRef.current = props.nodes;
+  }, [props.nodes]);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchMatchIds, setSearchMatchIds] = useState<string[]>([]);
+  const [searchIndex, setSearchIndex] = useState(0);
+  const { onNodesChange } = props;
+
+  const jumpToTable = useCallback(
+    (id: string) => {
+      const node = nodesRef.current.find((n) => n.id === id);
+      if (!node) return;
+      const width = node.measured?.width ?? DEFAULT_TABLE_WIDTH;
+      const height = node.measured?.height ?? DEFAULT_TABLE_HEIGHT;
+      setCenter(node.position.x + width / 2, node.position.y + height / 2, { zoom: 1, duration: 300 });
+      // Reuses the same select-change path a real click goes through, so the
+      // match gets the ordinary selection outline instead of a bespoke
+      // "found" style — one less visual language for a table to be in.
+      const changes: NodeChange<CanvasNode>[] = nodesRef.current
+        .filter((n) => n.type === "table")
+        .map((n) => ({ id: n.id, type: "select" as const, selected: n.id === id }));
+      onNodesChange(changes);
+    },
+    [setCenter, onNodesChange],
+  );
+
+  const runSearch = useCallback(
+    (query: string) => {
+      const q = query.trim().toLowerCase();
+      const matches = q
+        ? nodesRef.current.filter((n) => n.type === "table" && n.data.table.name.toLowerCase().includes(q)).map((n) => n.id)
+        : [];
+      setSearchMatchIds(matches);
+      setSearchIndex(0);
+      if (matches.length > 0) jumpToTable(matches[0]);
+    },
+    [jumpToTable],
+  );
+
+  const handleSearchQueryChange = useCallback(
+    (q: string) => {
+      setSearchQuery(q);
+      runSearch(q);
+    },
+    [runSearch],
+  );
+
+  const stepSearch = useCallback(
+    (delta: 1 | -1) => {
+      if (searchMatchIds.length === 0) return;
+      const next = (searchIndex + delta + searchMatchIds.length) % searchMatchIds.length;
+      setSearchIndex(next);
+      jumpToTable(searchMatchIds[next]);
+    },
+    [searchMatchIds, searchIndex, jumpToTable],
+  );
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchMatchIds([]);
+    setSearchIndex(0);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing = Boolean(
+        target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable ||
+            target.closest(".cm-editor, .nokey, [contenteditable='true']")),
+      );
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !typing) {
+        e.preventDefault();
+        setSearchOpen(true);
+      } else if (e.key === "Escape" && searchOpen) {
+        closeSearch();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [searchOpen, closeSearch]);
 
   const toggleMinimap = useCallback(() => {
     setShowMinimap((v) => {
@@ -674,6 +846,16 @@ export function CanvasArea(props: {
             >
               <MinimapIcon size={14} />
             </button>
+            <button
+              type="button"
+              className={`${CANVAS_TOOLBAR_ICON_BTN_CLASS} ${searchOpen ? CANVAS_TOOLBAR_TOGGLE_ACTIVE_CLASS : ""}`}
+              onClick={() => setSearchOpen(true)}
+              data-tooltip="Find a table (Ctrl+F)"
+              data-tooltip-pos="bottom"
+              aria-label="Find a table"
+            >
+              <SearchIcon size={14} />
+            </button>
 
             <span className={CANVAS_TOOLBAR_DIVIDER_CLASS} />
             <ZoomControls selectedIds={selectedTableIds} />
@@ -695,6 +877,17 @@ export function CanvasArea(props: {
             palette={props.palette}
             onPick={(color) => props.onSetTablesColor(selectedTableIds, color)}
             onGroup={() => props.onGroupTables(selectedTableIds)}
+          />
+        )}
+        {searchOpen && (
+          <CanvasSearchPanel
+            query={searchQuery}
+            onQueryChange={handleSearchQueryChange}
+            matchCount={searchMatchIds.length}
+            activeIndex={searchIndex}
+            onNext={() => stepSearch(1)}
+            onPrev={() => stepSearch(-1)}
+            onClose={closeSearch}
           />
         )}
       </ReactFlow>

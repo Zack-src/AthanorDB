@@ -35,6 +35,7 @@ import AsteriskSvg from "./icons/asterisk.svg?react";
 import IncrementSvg from "./icons/increment.svg?react";
 import MinimapSvg from "./icons/minimap.svg?react";
 import PuzzleSvg from "./icons/puzzle.svg?react";
+import SearchSvg from "./icons/search.svg?react";
 
 /**
  * Icon set — backed by real .svg files under `./icons/` (imported as React
@@ -96,6 +97,7 @@ export const AsteriskIcon = wrap(AsteriskSvg, 11);
 export const IncrementIcon = wrap(IncrementSvg, 11);
 export const MinimapIcon = wrap(MinimapSvg, 14);
 export const PuzzleIcon = wrap(PuzzleSvg, 14);
+export const SearchIcon = wrap(SearchSvg, 14);
 
 export function DatabaseIcon({ size = 16, className }: IconProps) {
   return (
