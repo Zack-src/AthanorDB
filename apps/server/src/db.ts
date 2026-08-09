@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { config } from "./config.js";
+import { runMigrations } from "./migrations.js";
 
 const DB_PATH = config.dbPath;
 
@@ -92,12 +93,7 @@ db.exec(`
 `);
 
 // `CREATE TABLE IF NOT EXISTS` above only creates new columns on a brand-new
-// database — a pre-existing `projects` table needs each added explicitly,
-// and there's no migration runner here.
-const projectColumns = db.prepare("PRAGMA table_info(projects)").all() as { name: string }[];
-if (!projectColumns.some((c) => c.name === "status")) {
-  db.exec("ALTER TABLE projects ADD COLUMN status TEXT NOT NULL DEFAULT 'active'");
-}
-if (!projectColumns.some((c) => c.name === "owner_id")) {
-  db.exec("ALTER TABLE projects ADD COLUMN owner_id TEXT REFERENCES users(id)");
-}
+// database — a pre-existing database needs each schema change applied
+// explicitly. See migrations.ts for the versioned runner this replaced two
+// one-off `PRAGMA table_info` + guarded `ALTER TABLE` checks with.
+runMigrations(db);
