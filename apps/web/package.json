@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@athanordb/dbml-engine": "*",
@@ -37,6 +38,7 @@
     "autoprefixer": "^10.5.4",
     "postcss": "^8.5.25",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.23.11",
     "typescript": "^5.6.0",
     "vite": "^5.4.6",
     "vite-plugin-svgr": "^5.2.0"
